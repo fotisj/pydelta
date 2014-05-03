@@ -1,0 +1,363 @@
+"""
+calculates Burrow's Delta and - hopefully - some variants of it
+tbd:
+- linear Delta
+- quadratic Delta
+- optimisation: profiling seems to indicate that the code spends most of the time in the double loop
+  calculating Delta
+- improve the output figure
+- write a handler for all the general variables, allowing to use a configuration file
+  and a gui to set them
+"""
+import sys
+import glob
+import re
+import collections
+import os
+import pandas as pd
+import csv
+import scipy.cluster.hierarchy as sch
+import matplotlib.pylab as plt
+from datetime import datetime
+import cProfile
+
+#number of words to use from the wordlist
+#set to 0 to use all
+mfwords = 1000
+
+#use existing wordlist
+use_wordlist = False
+
+#where to find the corpus
+subdir = "corpus3"
+
+#file_encoding
+encoding = "utf-8"
+
+#switch to extract only a sample. NOT tested yet
+set_limit = False
+
+#sample size
+limit = 200000
+
+#all words in lower case?
+lower_case = False
+
+#name of the file where the complete wordlist is saved
+fileout = "corpus_words.csv"
+
+#use filenames as labels in plot
+filenames_labels = True
+
+#save results to file results.csv
+save_results = True
+
+#separates information in filename
+sep = "-"
+
+#title in figure and filename
+title = '3 Autoren des Realismus'
+
+#name of the chosen algorithm
+delta_algorithm = {1: "Classic Delta",
+                   2: "Argamon's linear Delta",
+                   3: "Argamon's quadratic Delta"}
+
+delta_choice = delta_algorithm[1]
+
+
+def process_files(encoding="utf-8"):
+    """
+    preprocessing all files ending with *.txt in corpus subdir
+    all files are tokenized
+    a table of all word and their freq in all texts is created
+    """
+    filelist = glob.glob(subdir + os.sep + "*.txt")
+    list_of_wordlists = []
+    for file in filelist:
+        list_of_wordlists.append(tokenize_file(file, encoding))
+    corpus_words = pd.DataFrame(list_of_wordlists).fillna(0)
+    return corpus_words.T
+
+
+def tokenize_file(filename, encoding):
+    """
+    tokenizes file and returns an unordered pandas.DataFrame
+    containing the words and frequencies
+    standard encoding = utf-8
+    """
+    all_words = collections.defaultdict(int)
+
+    #read file, tokenize it, count words
+    read_text_length = 0
+    with open(filename, "r", encoding=encoding) as filein:
+        print("processing " + filename)
+        for line in filein:
+            if set_limit:
+                if read_text_length > limit:
+                    break
+                else:
+                    read_text_length += len(line)
+            words = re.findall("\w+", line)
+            for w in words:
+                if lower_case:
+                    w = w.lower()
+                all_words[w] += 1
+    filename = os.path.basename(filename)
+    wordlist = pd.Series(all_words, name=filename)
+    return wordlist / sum(wordlist)
+
+
+def save_file(corpus_words):
+    """
+    saves wordlists to file
+    using global var save_file
+    """
+    print("Saving wordlist to file " + fileout)
+    corpus_words.to_csv("corpus_words.csv", encoding="utf-8", na_rep=0, quoting=csv.QUOTE_NONNUMERIC)
+
+
+def preprocess_mfw_table(corpus):
+    """
+    sorts the table containing the frequency lists
+    by the sum of all word freq
+    returns the corpus list shortened to the most frequent words
+    number defined by mfwords
+    """
+    nr = []
+    #cols = corpus.columns
+    for i in corpus.index:
+        nr += [corpus.loc[i].sum()]
+    su = pd.Series(nr, index=corpus.index, name="sum")
+
+    #nifty trick to get it sorted according to sum
+    #not from me :-)
+    new_corpus = corpus.loc[(-corpus.sum(axis=1)).argsort()]
+    #slice only mfwords from total list
+    if mfwords != 0:
+        return new_corpus[:mfwords]
+    else:
+        return new_corpus
+
+
+def corpus_stds(corpus):
+    """calculates std for all words of the corpus
+       returns a pd.Series containing the means and the
+       words as index"""
+    stds = []
+    [stds.append((corpus.loc[i].std())) for i in corpus.index]
+    return pd.Series(stds, corpus.index)
+
+
+def corpus_means(corpus):
+    """calculates the means for all words of the corpus
+       returns a pd.Series containing the means and the
+       words as index"""
+    means = []
+    for i in corpus.index:
+        means.append((corpus.loc[i].mean()))
+    return pd.Series(means, corpus.index)
+
+
+def calculate_delta(corpus):
+    """
+    chooses the algorithm for the calculation of delta
+    after rewriting classic_delta this can be moved there
+    """
+    if delta_choice == delta_algorithm[1]:
+        return classic_delta(corpus)
+    elif delta_choice == delta_algorithm[2]:
+        return linear_delta(corpus)
+    elif delta_choice == delta_algorithm[2]:
+        return quadratic_delta(corpus)
+    else:
+        #tbd: use raise Exception for the following
+        print("ERROR: You have to choose an algorithm for Delta.")
+        sys.exit(1)
+
+
+def classic_delta(corpus):
+    stds = corpus_stds(corpus)
+    deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
+    for j in range(len(corpus.columns)):
+        if j != h:
+            for m in corpus.index:
+                ds = abs(corpus.loc[m][j] - corpus.loc[m][h]) / stds[m]
+                delta += ds
+            deltas[corpus.columns[j]][corpus.columns[h]] = delta / mfwords
+            deltas[corpus.columns[h]][corpus.columns[j]] = delta / mfwords
+        else:
+            deltas[corpus.columns[h]][corpus.columns[j]] = 0
+    return deltas
+
+
+def classic_delta1(corpus):
+    """
+    calculates Delta in the simplified form proposed by Argamon
+    tbd: reimplement this without nested loops which seem to be
+         especially slow
+    """
+    stds = corpus_stds(corpus)
+    deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
+    for j in range(len(corpus.columns)):
+        for h in range(j, len(corpus.columns)):
+            delta = 0
+            if j != h:
+                for m in corpus.index:
+                    ds = abs(corpus.loc[m][j] - corpus.loc[m][h]) / stds[m]
+                    delta += ds
+                deltas[corpus.columns[j]][corpus.columns[h]] = delta / mfwords
+                deltas[corpus.columns[h]][corpus.columns[j]] = delta / mfwords
+            else:
+                deltas[corpus.columns[h]][corpus.columns[j]] = 0
+    return deltas
+
+
+def linear_delta(corpus):
+    """
+    Argamon's linear Delta
+    """
+    pass
+
+
+def quadratic_delta(corpus):
+    """
+    Argamon's quadratic Delta
+    """
+    pass
+
+
+def get_author_surname(author_complete):
+    """extract surname from complete name
+    :param author_complete:
+    :rtype : str
+    """
+    return author_complete.split(",")[0]
+
+
+def shorten_title(title):
+    """shortens title to a meaningful but short string
+    :param title:
+    :rtype : str
+    """
+    junk = ["Ein", "Eine", "Der", "Die", "Das"]
+    title_parts = title.split(" ")
+    #getting rid of file ending .txt
+    if ".txt" in title_parts[-1]:
+        title_parts[-1] = title_parts[-1].split(".")[0]
+    #getting rid of junk at the beginning of the title
+    if title_parts[0] in junk:
+        title_parts.remove(title_parts[0])
+    t = " ".join(title_parts)
+    if len(t) > 25:
+        return t[0:24]
+    else:
+        return t
+
+
+def shorten_label(label):
+    """shortens one label consisting of authorname and title
+    :param label: a string containg the long version
+    :rtype: str
+    """
+    if "__" in label:
+        label = label.replace("__", "_")
+    author, title = label.split("_")
+    return get_author_surname(author) + "_" + shorten_title(title)
+
+
+def shorten_labels(labels):
+    """
+    shortens author and titles of novels in a useful way
+    open problem: similar titles which start with the same noun
+    :param labels: list of file names using author_title
+    :rtype: str
+    """
+    new_labels = []
+    for l in labels:
+        new_labels.append(shorten_label(l))
+    return new_labels
+
+
+def format_time():
+    """
+    helper method. date and time are used to create a string for inclusion into the filename
+    rtype: str
+    """
+    dt = datetime.now()
+    return u'{0}{1}{2}{3}{4}{5}{6}{7}{8}.png'.format(str(dt.year), sep, str(dt.month), sep, str(dt.day), sep,
+                                                     str(dt.hour), sep, str(dt.minute))
+
+
+def color_coding_author_names(ax):
+    """color codes author names
+    :param ax: a matplotlib axis as created by the dendogram method
+    """
+    #get the labels from the x - axis
+    ylbls = ax.get_ymajorticklabels()
+    colors = ["r", "g", "b", "m", "k", "Olive", "SaddleBrown", "CadetBlue", "DarkGreen", "Brown"]
+    cnt = 0
+    authors = {}
+    new_labels = []
+    for lbl in ylbls:
+        author, title = lbl.get_text().split("_")
+        if author in authors:
+            lbl.set_color(authors[author])
+        else:
+            color = colors[cnt]
+            authors[author] = color
+            lbl.set_color(color)
+            cnt += 1
+            if cnt == 9:
+                cnt = 0
+        lbl.set_text(author + " " + title)
+        new_labels.append(author + " " + title)
+    ax.set_yticklabels(new_labels)
+
+
+def display_results(deltas):
+    """
+    creates a dendogram which is displayed and saved to a file
+    there is a bug (I think) in the dendrogram method in scipy.cluster.hierarchy (probably)
+    or in matplotlit. If you choose  orientation="left" or "bottom" the method get_text on the labels
+    returns an empty string.
+    """
+    #clear the figure
+    plt.clf()
+    #create the datamodel which is needed as input for the dendrogram
+    z = sch.linkage(deltas, method='ward', metric='euclidean')
+    #create the dendrogram
+    p = sch.dendrogram(z, orientation="left", labels=shorten_labels(deltas.index), link_color_func=lambda k: 'k')
+    #get the axis
+    ax = plt.gca()
+    color_coding_author_names(ax)
+    plt.title(title)
+    plt.xlabel(str(mfwords) + " most frequent words. " + delta_choice)
+    plt.tight_layout(2)
+    plt.savefig(title + sep + str(mfwords) + ' mfw. ' + delta_choice + sep + format_time() + ".png")
+    plt.show()
+
+
+def save_results(mfw_corpus, deltas):
+    """saves results to files
+    :param mfw_corpus: the DataFrame shortened to the most frequent words
+    :param deltas: a DataFrame containing the Delta distance between the texts
+    """
+    mfw_corpus.to_csv("corpus.csv", encoding="utf-8")
+    deltas.to_csv("results.csv")
+
+
+def main():
+    corpus = process_files(encoding=encoding)
+    mfw_corpus = preprocess_mfw_table(corpus)
+    deltas = calculate_delta(mfw_corpus)
+    display_results(deltas)
+    #save_results(mfw_corpus, deltas)
+    print("Done.")
+
+
+if __name__ == '__main__':
+    main()
+
+
+#cProfile.run('main()', "profile.txt")
