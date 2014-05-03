@@ -1,10 +1,7 @@
 """
 calculates Burrow's Delta and - hopefully - some variants of it
 tbd:
-- linear Delta
-- quadratic Delta
-- optimisation: profiling seems to indicate that the code spends most of the time in the double loop
-  calculating Delta
+- improve timing for building the tables
 - improve the output figure
 - write a handler for all the general variables, allowing to use a configuration file
   and a gui to set them
@@ -23,7 +20,7 @@ import cProfile
 
 #number of words to use from the wordlist
 #set to 0 to use all
-mfwords = 1000
+mfwords = 2000
 
 #use existing wordlist
 use_wordlist = False
@@ -56,14 +53,14 @@ save_results = True
 sep = "-"
 
 #title in figure and filename
-title = '3 Autoren des Realismus'
+title = 'Dramatiker um 1800'
 
 #name of the chosen algorithm
 delta_algorithm = {1: "Classic Delta",
                    2: "Argamon's linear Delta",
                    3: "Argamon's quadratic Delta"}
 
-delta_choice = delta_algorithm[1]
+delta_choice = delta_algorithm[3]
 
 
 def process_files(encoding="utf-8"):
@@ -71,6 +68,10 @@ def process_files(encoding="utf-8"):
     preprocessing all files ending with *.txt in corpus subdir
     all files are tokenized
     a table of all word and their freq in all texts is created
+    format
+            filename1 filename2 filename3
+    word      nr        nr
+    word      nr        nr
     """
     filelist = glob.glob(subdir + os.sep + "*.txt")
     list_of_wordlists = []
@@ -149,6 +150,34 @@ def corpus_stds(corpus):
     return pd.Series(stds, corpus.index)
 
 
+def corpus_medians(corpus):
+    """calculates medians for all words of the corpus
+       returns a pd.Series containing the medians and the
+       words as index"""
+    medians = []
+    [medians.append((corpus.loc[i].median())) for i in corpus.index]
+    return pd.Series(medians, corpus.index)
+
+
+def diversity(values):
+    """
+    calculates the spread or diversity (wikipedia) of a laplace distribution of values
+    see Argamon's Interpreting Burrow's Delta p. 137 and
+    http://en.wikipedia.org/wiki/Laplace_distribution
+    couldn't find a ready-made solution in the python libraries
+    :param values: a pd.Series of values
+    """
+    median = values.median()
+    return sum([abs(i-median) for i in values]) / values.size
+
+
+def corpus_diversities(corpus):
+    diversities = []
+    [diversities.append(diversity(corpus.loc[i])) for i in corpus.index]
+    return pd.Series(diversities, corpus.index)
+
+
+#not used at the moment
 def corpus_means(corpus):
     """calculates the means for all words of the corpus
        returns a pd.Series containing the means and the
@@ -165,10 +194,10 @@ def calculate_delta(corpus):
     after rewriting classic_delta this can be moved there
     """
     if delta_choice == delta_algorithm[1]:
-        return classic_delta(corpus)
+        return classic_delta1(corpus)
     elif delta_choice == delta_algorithm[2]:
         return linear_delta(corpus)
-    elif delta_choice == delta_algorithm[2]:
+    elif delta_choice == delta_algorithm[3]:
         return quadratic_delta(corpus)
     else:
         #tbd: use raise Exception for the following
@@ -180,14 +209,13 @@ def classic_delta(corpus):
     stds = corpus_stds(corpus)
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
     for j in range(len(corpus.columns)):
-        if j != h:
-            for m in corpus.index:
-                ds = abs(corpus.loc[m][j] - corpus.loc[m][h]) / stds[m]
-                delta += ds
-            deltas[corpus.columns[j]][corpus.columns[h]] = delta / mfwords
-            deltas[corpus.columns[h]][corpus.columns[j]] = delta / mfwords
-        else:
-            deltas[corpus.columns[h]][corpus.columns[j]] = 0
+        for h in range(j, len(corpus.columns)):
+            if j != h:
+                delta = sum(abs(corpus[corpus.columns[j]] - corpus[corpus.columns[h]]) / stds) / mfwords
+                deltas[corpus.columns[j]][corpus.columns[h]] = delta
+                deltas[corpus.columns[h]][corpus.columns[j]] = delta
+            else:
+                deltas[corpus.columns[h]][corpus.columns[j]] = 0
     return deltas
 
 
@@ -197,6 +225,7 @@ def classic_delta1(corpus):
     tbd: reimplement this without nested loops which seem to be
          especially slow
     """
+    print ("using classic delta")
     stds = corpus_stds(corpus)
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
     for j in range(len(corpus.columns)):
@@ -213,18 +242,43 @@ def classic_delta1(corpus):
     return deltas
 
 
-def linear_delta(corpus):
-    """
-    Argamon's linear Delta
-    """
-    pass
-
-
 def quadratic_delta(corpus):
     """
     Argamon's quadratic Delta
     """
-    pass
+    print ("using quadratic delta")
+    stds = corpus_stds(corpus)
+    deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
+    for j in range(len(corpus.columns)):
+        for h in range(j, len(corpus.columns)):
+            if j != h:
+                delta = sum(((corpus[corpus.columns[j]] - corpus[corpus.columns[h]])**2) / stds**2)
+                deltas[corpus.columns[j]][corpus.columns[h]] = delta
+                deltas[corpus.columns[h]][corpus.columns[j]] = delta
+            else:
+                deltas[corpus.columns[h]][corpus.columns[j]] = 0
+    return deltas
+
+
+
+def linear_delta(corpus):
+    """
+    Argamon's linear Delta
+    """
+    print ("using linear delta")
+    diversities = corpus_diversities(corpus)
+    deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
+    for j in range(len(corpus.columns)):
+        for h in range(j, len(corpus.columns)):
+            if j != h:
+                delta = sum(abs(corpus[corpus.columns[j]] - corpus[corpus.columns[h]]) / diversities)
+                deltas[corpus.columns[j]][corpus.columns[h]] = delta
+                deltas[corpus.columns[h]][corpus.columns[j]] = delta
+            else:
+                deltas[corpus.columns[h]][corpus.columns[j]] = 0
+    return deltas
+
+
 
 
 def get_author_surname(author_complete):
@@ -352,7 +406,7 @@ def main():
     mfw_corpus = preprocess_mfw_table(corpus)
     deltas = calculate_delta(mfw_corpus)
     display_results(deltas)
-    #save_results(mfw_corpus, deltas)
+    save_results(mfw_corpus, deltas)
     print("Done.")
 
 
