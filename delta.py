@@ -15,6 +15,7 @@ import pandas as pd
 import csv
 import scipy.cluster.hierarchy as sch
 import matplotlib.pylab as plt
+import itertools
 from datetime import datetime
 import cProfile
 
@@ -211,25 +212,14 @@ def classic_delta(corpus):
 def classic_delta1(corpus):
     """
     calculates Delta in the simplified form proposed by Argamon
-    tbd: reimplement this without nested loops which seem to be
-         especially slow
     """
-    print ("using classic delta")
     stds = corpus_stds(corpus)
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
-    for j in range(len(corpus.columns)):
-        for h in range(j, len(corpus.columns)):
-            delta = 0
-            if j != h:
-                for m in corpus.index:
-                    ds = abs(corpus.loc[m][j] - corpus.loc[m][h]) / stds[m]
-                    delta += ds
-                deltas[corpus.columns[j]][corpus.columns[h]] = delta / mfwords
-                deltas[corpus.columns[h]][corpus.columns[j]] = delta / mfwords
-            else:
-                deltas[corpus.columns[h]][corpus.columns[j]] = 0
-    return deltas
-
+    for i in itertools.combinations(corpus.columns, 2):
+        delta = sum(abs(corpus[i[0]] - corpus[i[1]]) / stds) / mfwords
+        deltas[i[0]][i[1]] = delta
+        deltas[i[1]][i[0]] = delta
+    return deltas.fillna(0)
 
 def quadratic_delta(corpus):
     """
