@@ -1,6 +1,6 @@
 #!/usr/bin/env python3 
 """
-calculates Burrow's Delta and - hopefully - some variants of it
+calculates Burrow's Delta and Argamon's proposed variations
 tbd:
 - write a gui to set all the configuration information
 """
@@ -16,11 +16,13 @@ import matplotlib.pylab as plt
 import itertools
 from datetime import datetime
 import profig
-import cProfile
 
 
 def get_configuration():
-    config = profig.Config("delta.ini")
+    """
+    writes/reads a default configuration to pydelta.ini. If you want to change these parameters, use the ini file
+    """
+    config = profig.Config("pydelta.ini")
 
     #where to find the corpus
     config.init("files.subdir", "corpus", comment="the subdirectory containing the text files used as input")
@@ -414,6 +416,6 @@ def main():
 
 
 if __name__ == '__main__':
-    #main()
-    cProfile.run('main()', "profile.txt")
+    main()
+
 
