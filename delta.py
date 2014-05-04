@@ -125,12 +125,6 @@ def preprocess_mfw_table(corpus):
     returns the corpus list shortened to the most frequent words
     number defined by mfwords
     """
-    nr = []
-    #cols = corpus.columns
-    for i in corpus.index:
-        nr += [corpus.loc[i].sum()]
-    su = pd.Series(nr, index=corpus.index, name="sum")
-
     #nifty trick to get it sorted according to sum
     #not from me :-)
     new_corpus = corpus.loc[(-corpus.sum(axis=1)).argsort()]
@@ -145,18 +139,18 @@ def corpus_stds(corpus):
     """calculates std for all words of the corpus
        returns a pd.Series containing the means and the
        words as index"""
-    stds = []
-    [stds.append((corpus.loc[i].std())) for i in corpus.index]
-    return pd.Series(stds, corpus.index)
+    #stds = [corpus.loc[i].std() for i in corpus.index]
+    #return pd.Series(stds, corpus.index)
+    return corpus.std(axis=1)
 
 
 def corpus_medians(corpus):
     """calculates medians for all words of the corpus
        returns a pd.Series containing the medians and the
        words as index"""
-    medians = []
-    [medians.append((corpus.loc[i].median())) for i in corpus.index]
-    return pd.Series(medians, corpus.index)
+    #medians = [corpus.loc[i].median() for i in corpus.index]
+    #return pd.Series(medians, corpus.index)
+    return corpus.median(axis=1)
 
 
 def diversity(values):
@@ -172,9 +166,7 @@ def diversity(values):
 
 
 def corpus_diversities(corpus):
-    diversities = []
-    [diversities.append(diversity(corpus.loc[i])) for i in corpus.index]
-    return pd.Series(diversities, corpus.index)
+    return corpus.apply(diversity, axis=1)
 
 
 #not used at the moment
@@ -182,10 +174,7 @@ def corpus_means(corpus):
     """calculates the means for all words of the corpus
        returns a pd.Series containing the means and the
        words as index"""
-    means = []
-    for i in corpus.index:
-        means.append((corpus.loc[i].mean()))
-    return pd.Series(means, corpus.index)
+    return corpus.mean(axis=1)
 
 
 def calculate_delta(corpus):
