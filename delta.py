@@ -1,3 +1,4 @@
+#!/usr/bin/env python3 
 """
 calculates Burrow's Delta and - hopefully - some variants of it
 tbd:
@@ -61,7 +62,7 @@ delta_algorithm = {1: "Classic Delta",
                    2: "Argamon's linear Delta",
                    3: "Argamon's quadratic Delta"}
 
-delta_choice = delta_algorithm[3]
+delta_choice = delta_algorithm[1]
 
 
 def process_files(encoding="utf-8"):
@@ -107,7 +108,7 @@ def tokenize_file(filename, encoding):
                 all_words[w] += 1
     filename = os.path.basename(filename)
     wordlist = pd.Series(all_words, name=filename)
-    return wordlist / sum(wordlist)
+    return wordlist / wordlist.sum()
 
 
 def save_file(corpus_words):
@@ -140,8 +141,6 @@ def corpus_stds(corpus):
     """calculates std for all words of the corpus
        returns a pd.Series containing the means and the
        words as index"""
-    #stds = [corpus.loc[i].std() for i in corpus.index]
-    #return pd.Series(stds, corpus.index)
     return corpus.std(axis=1)
 
 
@@ -149,8 +148,6 @@ def corpus_medians(corpus):
     """calculates medians for all words of the corpus
        returns a pd.Series containing the medians and the
        words as index"""
-    #medians = [corpus.loc[i].median() for i in corpus.index]
-    #return pd.Series(medians, corpus.index)
     return corpus.median(axis=1)
 
 
@@ -162,8 +159,7 @@ def diversity(values):
     couldn't find a ready-made solution in the python libraries
     :param values: a pd.Series of values
     """
-    median = values.median()
-    return sum([abs(i-median) for i in values]) / values.size
+    return (values - values.median()).abs().sum() / values.size
 
 
 def corpus_diversities(corpus):
@@ -215,10 +211,10 @@ def classic_delta1(corpus):
     """
     stds = corpus_stds(corpus)
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
-    for i in itertools.combinations(corpus.columns, 2):
-        delta = sum(abs(corpus[i[0]] - corpus[i[1]]) / stds) / mfwords
-        deltas[i[0]][i[1]] = delta
-        deltas[i[1]][i[0]] = delta
+    for i, j in itertools.combinations(corpus.columns, 2):
+        delta = ((corpus[i] - corpus[j]).abs() / stds).sum() / mfwords
+        deltas.at[i, j] = delta
+        deltas.at[j, i] = delta
     return deltas.fillna(0)
 
 def quadratic_delta(corpus):
@@ -226,17 +222,13 @@ def quadratic_delta(corpus):
     Argamon's quadratic Delta
     """
     print ("using quadratic delta")
-    stds = corpus_stds(corpus)
+    vars_ = corpus_stds(corpus)**2
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
-    for j in range(len(corpus.columns)):
-        for h in range(j, len(corpus.columns)):
-            if j != h:
-                delta = sum(((corpus[corpus.columns[j]] - corpus[corpus.columns[h]])**2) / stds**2)
-                deltas[corpus.columns[j]][corpus.columns[h]] = delta
-                deltas[corpus.columns[h]][corpus.columns[j]] = delta
-            else:
-                deltas[corpus.columns[h]][corpus.columns[j]] = 0
-    return deltas
+    for i, j in itertools.combinations(corpus.columns, 2):
+        delta = ((corpus[i]-corpus[j])**2 / vars_).sum()
+        deltas.at[i, j] = delta
+        deltas.at[j, i] = delta
+    return deltas.fillna(0)
 
 
 
@@ -247,15 +239,12 @@ def linear_delta(corpus):
     print ("using linear delta")
     diversities = corpus_diversities(corpus)
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
-    for j in range(len(corpus.columns)):
-        for h in range(j, len(corpus.columns)):
-            if j != h:
-                delta = sum(abs(corpus[corpus.columns[j]] - corpus[corpus.columns[h]]) / diversities)
-                deltas[corpus.columns[j]][corpus.columns[h]] = delta
-                deltas[corpus.columns[h]][corpus.columns[j]] = delta
-            else:
-                deltas[corpus.columns[h]][corpus.columns[j]] = 0
-    return deltas
+
+    for i, j in itertools.combinations(corpus.columns, 2):
+        delta = ((corpus[i] - corpus[j]).abs() / diversities).sum()
+        deltas.at[i, j] = delta
+        deltas.at[j, i] = delta
+    return deltas.fillna(0)
 
 
 
@@ -318,7 +307,7 @@ def format_time():
     rtype: str
     """
     dt = datetime.now()
-    return u'{0}{1}{2}{3}{4}{5}{6}{7}{8}.png'.format(str(dt.year), sep, str(dt.month), sep, str(dt.day), sep,
+    return u'{0}{1}{2}{3}{4}{5}{6}{7}{8}'.format(str(dt.year), sep, str(dt.month), sep, str(dt.day), sep,
                                                      str(dt.hour), sep, str(dt.minute))
 
 
@@ -347,6 +336,8 @@ def color_coding_author_names(ax):
         new_labels.append(author + " " + title)
     ax.set_yticklabels(new_labels)
 
+def result_filename():
+    return title + sep + str(mfwords) + ' mfw. ' + delta_choice + sep + format_time()
 
 def display_results(deltas):
     """
@@ -367,7 +358,7 @@ def display_results(deltas):
     plt.title(title)
     plt.xlabel(str(mfwords) + " most frequent words. " + delta_choice)
     plt.tight_layout(2)
-    plt.savefig(title + sep + str(mfwords) + ' mfw. ' + delta_choice + sep + format_time() + ".png")
+    plt.savefig(result_filename() + ".png")
     plt.show()
 
 
@@ -377,20 +368,23 @@ def save_results(mfw_corpus, deltas):
     :param deltas: a DataFrame containing the Delta distance between the texts
     """
     mfw_corpus.to_csv("corpus.csv", encoding="utf-8")
-    deltas.to_csv("results.csv")
+    deltas.to_csv(result_filename() + ".results.csv")
 
 
 def main():
     corpus = process_files(encoding=encoding)
     mfw_corpus = preprocess_mfw_table(corpus)
-    deltas = calculate_delta(mfw_corpus)
-    display_results(deltas)
-    save_results(mfw_corpus, deltas)
+
+    for distance_function in delta_algorithm.values():
+        global delta_choice             # ugh.
+        delta_choice = distance_function
+        deltas = calculate_delta(mfw_corpus)
+        display_results(deltas)
+        save_results(mfw_corpus, deltas)
     print("Done.")
 
 
 if __name__ == '__main__':
-    main()
+    #main() 
+    cProfile.run('main()', "profile.txt")
 
-
-#cProfile.run('main()', "profile.txt")
