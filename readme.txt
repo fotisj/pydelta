@@ -16,3 +16,7 @@ Usage of pydelta:
 put your files into a subdirectory called 'corpus' under the directory
 this script is living in. After the first run, you can use the file
 delta.ini to set most of the important variables. 
+
+Thanks go to
+Thorsten Vitt for his help with profiling some critical parts and general improvements
+Allan Riddell for advise on matplotlib
