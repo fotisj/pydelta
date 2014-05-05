@@ -81,6 +81,9 @@ def get_configuration():
     #allowed values are 'left' (author and title at the left side) and 'top' (author/title at the bottom)
     config.init("figure.fig_orientation", "left", comment="orientation of the figure. allowed values: 'left', 'top'")
 
+    #font-size used in the figure
+    config.init("figure.font_size", 11, comment="font-size for labels in the figure")
+
     #writes configuration files if it doesn't exist, otherwise reads in
     #values from there
     config.sync()
@@ -100,6 +103,9 @@ def process_files(config):
     :param: config: access to configuration settings
     :param: encoding: file encoding for input files
     """
+    if not os.path.exists(config['files.subdir']):
+        print("The directory " + config['files.subdir'] + " doesn't exist. Please add a directory with text files.")
+        sys.exit(1)
     filelist = glob.glob(config['files.subdir'] + os.sep + "*.txt")
     list_of_wordlists = []
     for file in filelist:
@@ -363,7 +369,7 @@ def display_results(deltas, config):
     elif config["figure.fig_orientation"] == "left":
         rotation = 0
     sch.dendrogram(z, orientation=config["figure.fig_orientation"], labels=shorten_labels(deltas.index),
-                   leaf_rotation=rotation, link_color_func=lambda k: 'k')
+                   leaf_rotation=rotation, link_color_func=lambda k: 'k', leaf_font_size=config["figure.font_size"])
     #get the axis
     ax = plt.gca()
     color_coding_author_names(ax, config)
@@ -372,7 +378,7 @@ def display_results(deltas, config):
         config["statistics.delta_choice"]])
     plt.tight_layout(2)
     plt.savefig(result_filename(config) + ".png")
-    #plt.show()
+    plt.show()
 
 
 def format_time(config):
