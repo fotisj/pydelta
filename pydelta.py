@@ -2,7 +2,9 @@
 """
 calculates Burrow's Delta and Argamon's proposed variations
 tbd:
+- add evaluation for the results. 
 - write a gui to set all the configuration information
+
 """
 import sys
 import glob
@@ -12,10 +14,12 @@ import os
 import pandas as pd
 import csv
 import scipy.cluster.hierarchy as sch
+import scipy.spatial.distance as ssd
 import matplotlib.pylab as plt
 import itertools
 from datetime import datetime
 import profig
+import logging
 
 
 def get_configuration():
@@ -69,6 +73,16 @@ def get_configuration():
     #possible values are 0,1,2
     config.init("statistics.delta_choice", 0, comment="choice of the delta algorithm. 0 = classic, 1 = linear usw.")
 
+    config.init("statistics.linkage_method", "ward", comment="method how the distance between the newly formed " +
+                                                             "cluster and each candidate is calculated. Valid " +
+                                                             "valuues: 'ward', 'single', 'average', 'complete',   " +
+                                                             "'weighted'. See documentation on " +
+                                                             "scipy.cluster.hierarchy.linkage for details.")
+
+    config.init("statistics.evaluate", True, comment="evaluation of the results. Only useful if there are always" +
+                                                     "more than 2 texts by an author and the attribution of all " +
+                                                     "texts is known.")
+
     #title in figure and filename
     config.init("figure.fig_title", '3 novelists from German realism', comment="title is used in the " +
                                                                                "figure and the name of the "+
@@ -101,10 +115,10 @@ def process_files(config):
     word      nr        nr
     word      nr        nr
     :param: config: access to configuration settings
-    :param: encoding: file encoding for input files
     """
     if not os.path.exists(config['files.subdir']):
-        print("The directory " + config['files.subdir'] + " doesn't exist. Please add a directory with text files.")
+        print("The directory " + config['files.subdir'] + " doesn't exist. \nPlease add a directory " +
+                                                          "with text files.\n")
         sys.exit(1)
     filelist = glob.glob(config['files.subdir'] + os.sep + "*.txt")
     list_of_wordlists = []
@@ -129,7 +143,7 @@ def tokenize_file(filename, encoding, config):
     limit = config["data.limit"]
     lower_case = config["data.lower_case"]
     with open(filename, "r", encoding=encoding) as filein:
-        print("processing " + filename)
+        #print("processing " + filename)
         for line in filein:
             if set_limit:
                 if read_text_length > limit:
@@ -229,6 +243,7 @@ def classic_delta(corpus, mfwords):
     """
     calculates Delta in the simplified form proposed by Argamon
     """
+    #print("using classic delta")
     stds = corpus_stds(corpus)
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
     for i, j in itertools.combinations(corpus.columns, 2):
@@ -242,7 +257,7 @@ def quadratic_delta(corpus):
     """
     Argamon's quadratic Delta
     """
-    print("using quadratic delta")
+    #print("using quadratic delta")
     vars_ = corpus_stds(corpus) ** 2
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
     for i, j in itertools.combinations(corpus.columns, 2):
@@ -256,7 +271,7 @@ def linear_delta(corpus):
     """
     Argamon's linear Delta
     """
-    print("using linear delta")
+    #print("using linear delta")
     diversities = corpus_diversities(corpus)
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
 
@@ -362,13 +377,22 @@ def display_results(deltas, config):
     #clear the figure
     plt.clf()
     #create the datamodel which is needed as input for the dendrogram
-    z = sch.linkage(deltas, method='ward', metric='euclidean')
+    #only method ward demands a redundant distance matrix while the others seem to get different
+    #results with a redundant matrix and with a flat one, latter seems to be ok.
+    #see https://github.com/scipy/scipy/issues/2614  (not sure this is still an issue)
+    if config["statistics.linkage_method"] == "ward":
+        z = sch.linkage(deltas, method='ward', metric='euclidean')
+    else:
+        #creating a flat representation of the dist matrix
+        deltas_flat = ssd.squareform(deltas)
+        z = sch.linkage(deltas_flat, method=config["statistics.linkage_method"], metric='euclidean')
+    #print("linkage method: ", config["statistics.linkage_method"])
     #create the dendrogram
     if config["figure.fig_orientation"] == "top":
         rotation = 90
     elif config["figure.fig_orientation"] == "left":
         rotation = 0
-    sch.dendrogram(z, orientation=config["figure.fig_orientation"], labels=shorten_labels(deltas.index),
+    dendro_data = sch.dendrogram(z, orientation=config["figure.fig_orientation"], labels=shorten_labels(deltas.index),
                    leaf_rotation=rotation, link_color_func=lambda k: 'k', leaf_font_size=config["figure.font_size"])
     #get the axis
     ax = plt.gca()
@@ -379,6 +403,7 @@ def display_results(deltas, config):
     plt.tight_layout(2)
     plt.savefig(result_filename(config) + ".png")
     plt.show()
+    return dendro_data
 
 
 def format_time(config):
@@ -411,15 +436,83 @@ def save_results(mfw_corpus, deltas, config):
     deltas.to_csv(result_filename(config) + ".results.csv")
 
 
+def check_max(s):
+    max_value = 0
+    aname = s.name.split("_")[0]
+    for i in s.index:
+        name = i.split("_")[0]
+        if name == aname:
+            if s[i] > max_value:
+                max_value = s[i]
+    return max_value
+
+
+def classified_correctly(s, max_value):
+    """
+    checks whether the distance of a given text to texts of other authors is smaller than to
+     texts of the same author
+    :param: s: a pd.Series containing deltas
+    :max_value: the largest distance to a text of the same author
+    """
+    #if only one text of an author is in the set, an evaluation of the  clustering makes no sense
+    if max_value == 0:
+        return None
+    aname = s.name.split("_")[0]
+    for i in s.index:
+        name = i.split("_")[0]
+        if name != aname:
+            if s[i] < max_value:
+                return False
+    return True
+
+
+def error_eval(l):
+    """
+    trival check of a list of numbers for 'errors'. An error is defined as i - (i-1)  != 1
+    :param: l: a list of numbers representing the position of the author names in the figure labels
+    :rtype: int
+    """
+    errors = 0
+    d = None
+    for i in range(len(l)):
+        if d == None:
+            d = 0
+        else:
+            if l[i] - l[i-1] > 1:
+                errors += 1
+    return errors
+
+
+def evaluate_results(fig_data):
+    """
+    evaluates the results on the basis of the dendrogram
+    :param: fig_data: representation of the dendrogram as returned by
+                      scipy.cluster.hierarchy.dendrogram
+    """
+    ivl = fig_data['ivl']
+    authors = {}
+    for i in range(len(ivl)):
+        au = ivl[i].split("_")[0]
+        if au not in authors:
+            authors[au] = [i]
+        else:
+            authors[au].append(i)
+
+    errors = 0
+    for x in authors.keys():
+        errors += error_eval(authors[x])
+
+    print ("attributions - errors: ", len(ivl), " - ", errors)
+
 def main():
     config = get_configuration()
     corpus = process_files(config)
     mfw_corpus = preprocess_mfw_table(corpus, config)
     deltas = calculate_delta(mfw_corpus, config)
-    display_results(deltas, config)
+    fig = display_results(deltas, config)
     save_results(mfw_corpus, deltas, config)
-    print("Done.")
-
+    if config["statistics.evaluate"]:
+        evaluate_results(fig)
 
 if __name__ == '__main__':
     main()
