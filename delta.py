@@ -120,7 +120,7 @@ def save_file(corpus_words):
     corpus_words.to_csv("corpus_words.csv", encoding="utf-8", na_rep=0, quoting=csv.QUOTE_NONNUMERIC)
 
 
-def preprocess_mfw_table(corpus):
+def preprocess_mfw_table(corpus, mfwords=mfwords):
     """
     sorts the table containing the frequency lists
     by the sum of all word freq
@@ -210,6 +210,7 @@ def classic_delta1(corpus):
     calculates Delta in the simplified form proposed by Argamon
     """
     stds = corpus_stds(corpus)
+    mfwords = c.index.size
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
     for i, j in itertools.combinations(corpus.columns, 2):
         delta = ((corpus[i] - corpus[j]).abs() / stds).sum() / mfwords
@@ -223,6 +224,7 @@ def quadratic_delta(corpus):
     """
     print ("using quadratic delta")
     vars_ = corpus_stds(corpus)**2
+    mfwords = c.index.size
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
     for i, j in itertools.combinations(corpus.columns, 2):
         delta = ((corpus[i]-corpus[j])**2 / vars_).sum()
