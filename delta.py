@@ -13,6 +13,8 @@ import re
 import collections
 import os
 import pandas as pd
+import numpy as np
+import numpy.linalg as npl
 import csv
 import scipy.cluster.hierarchy as sch
 import matplotlib.pylab as plt
@@ -248,6 +250,54 @@ def linear_delta(corpus):
         deltas.at[j, i] = delta
     return deltas.fillna(0)
 
+def cov_matrix(corpus):
+    """
+    Calculates the covariance matrix S consisting of the covariances $\sigma_{ij
+    }$ for the words $w_i, w_j$ in the given comparison corpus.
+
+    :param corpus: is a words x texts DataFrame representing the reference
+    corpus.
+    """
+    means = corpus.mean(axis=1)
+    documents = corpus.columns.size
+    result = pd.DataFrame(index=corpus.index, columns=corpus.index, dtype=np.float)
+    dev = corpus.sub(means, axis=0)
+    for w in corpus.index:
+        result.at[w,w] = (dev.loc[w]**2).sum() / documents
+
+    # FIXME hier ist noch Optimierungspotential, 
+    # bei 2000 Wörtern läuft das ewig. 
+    # Ggf. corpus.loc[w]-means.at[w] cachen? ob's das bringt?
+    for i, j in itertools.combinations(corpus.index, 2):
+            cov = (dev.loc[i] * dev.loc[j]).sum() / documents
+            result.at[i,j] = cov
+            result.at[j,i] = cov
+    # now fill the diagonal with the variance:
+    return result
+
+def rotation_matrixes(cov):
+    """
+    Calculates the rotation matrixes E_* and D_* for the given
+    covariance matrix according to Argamon
+    """
+    ev, E = npl.eig(cov)
+    D = np.diag(ev)
+    # lustigerweise hab ich in meinen experimenten _nie_ ein eigvals_i=0
+    # gefunden. D.h. die Reduktion können wir uns sparen:
+    if 0 in ev:
+        raise Exception("Oops. Seems we need to implement the reduction function.")
+    return (E, D)
+
+
+def delta_rotated(corpus, cov):
+    """
+    Calculates $\Delta_{Q,\not\perp}^{(n)}$ according to Argamon, i.e.
+    the axis-rotated quadratic delta using eigenvalue decomposition to 
+    rotate the feature space according to the word frequency covariance 
+    matrix calculated from a reference corpus
+    """
+    E, D = rotation_matrixes(cov)
+    # XXX
 
 
 
