@@ -20,6 +20,7 @@ import os
 import csv
 import itertools
 from datetime import datetime
+import argparse
 
 import pandas as pd
 import scipy.cluster.hierarchy as sch
@@ -48,21 +49,21 @@ def get_configuration():
     config.init("save.save_results", True, comment="the results (i.e. the delta measures) are written " +
                                                    "into the file results.csv. The mfwords are saved too.")
     config.init("save.sep", "-", comment="sperates time and statistic information in the image filename")
-    config.init("statistics.mfwords", 2000, comment="number of most frequent words to use " +
+    config.init("stat.mfwords", 2000, comment="number of most frequent words to use " +
                                                     "in the calculation of delta. 0 for all words")
-    config.init("statistics.delta_algorithm", ["Classic Delta",
+    config.init("stat.delta_algorithm", ["Classic Delta",
                                                "Argamon's linear Delta",
                                                "Argamon's quadratic Delta"], comment="available delta algorithms")
-    config.init("statistics.delta_choice", 0, comment="choice of the delta algorithm. 0 = classic, 1 = linear usw.")
-    config.init("statistics.linkage_method", "ward", comment="method how the distance between the newly formed " +
+    config.init("stat.delta_choice", 0, comment="choice of the delta algorithm. 0 = classic, 1 = linear usw.")
+    config.init("stat.linkage_method", "ward", comment="method how the distance between the newly formed " +
                                                              "cluster and each candidate is calculated. Valid " +
                                                              "values: 'ward', 'single', 'average', 'complete',   " +
                                                              "'weighted'. See documentation on " +
                                                              "scipy.cluster.hierarchy.linkage for details.")
-    config.init("statistics.evaluate", False, comment="evaluation of the results. Only useful if there are always" +
+    config.init("stat.evaluate", False, comment="evaluation of the results. Only useful if there are always" +
                                                       "more than 2 texts by an author and the attribution of all " +
                                                       "texts is known.")
-    config.init("figure.fig_title", 'Stylistic analysis using Delta', comment="title is used in the " +
+    config.init("figure.title", 'Stylistic analysis using Delta', comment="title is used in the " +
                                                                               "figure and the name of the " +
                                                                               "file containing the figure")
     config.init("figure.filenames_labels", True, comment="use the filename of the texts as labels")
@@ -75,6 +76,23 @@ def get_configuration():
     config.sync()
 
     return config
+
+
+def get_commandline(config):
+    """
+    allows user to override all settings using commandline arguments.
+    """
+    help_msg = " ".join([str(x) for x in config])
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-O', dest='options', action='append',
+                        metavar='<key>:<value>', help='Overrides an option in the config file.'+
+                                                      '\navailable options:\n' + help_msg)
+    args = parser.parse_args()
+    # update option values
+    if args.options is not None:
+        config.update(opt.split(':') for opt in args.options)
+    return config
+
 
 
 def process_files(subdir, encoding, limit, set_limit, lower_case):
@@ -349,13 +367,13 @@ def display_results(deltas, config):
     #only method ward demands a redundant distance matrix while the others seem to get different
     #results with a redundant matrix and with a flat one, latter seems to be ok.
     #see https://github.com/scipy/scipy/issues/2614  (not sure this is still an issue)
-    if config["statistics.linkage_method"] == "ward":
+    if config["stat.linkage_method"] == "ward":
         z = sch.linkage(deltas, method='ward', metric='euclidean')
     else:
         #creating a flat representation of the dist matrix
         deltas_flat = ssd.squareform(deltas)
-        z = sch.linkage(deltas_flat, method=config["statistics.linkage_method"], metric='euclidean')
-    #print("linkage method: ", config["statistics.linkage_method"])
+        z = sch.linkage(deltas_flat, method=config["stat.linkage_method"], metric='euclidean')
+    #print("linkage method: ", config["stat.linkage_method"])
     #create the dendrogram
     if config["figure.fig_orientation"] == "top":
         rotation = 90
@@ -367,9 +385,9 @@ def display_results(deltas, config):
     #get the axis
     ax = plt.gca()
     color_coding_author_names(ax, config)
-    plt.title(config["figure.fig_title"])
-    plt.xlabel(str(config["statistics.mfwords"]) + " most frequent words. " + config["statistics.delta_algorithm"][
-        config["statistics.delta_choice"]])
+    plt.title(config["figure.title"])
+    plt.xlabel(str(config["stat.mfwords"]) + " most frequent words. " + config["stat.delta_algorithm"][
+        config["stat.delta_choice"]])
     plt.tight_layout(2)
     plt.savefig(result_filename(config) + ".png")
     plt.show()
@@ -392,8 +410,8 @@ def result_filename(config):
     helper method to format the filename for the image which is saved to file
     the name contains the title and some info on the chosen statistics
     """
-    return config["figure.fig_title"] + config["save.sep"] + str(config["statistics.mfwords"]) \
-           + " mfw. " + config["statistics.delta_algorithm"][config["statistics.delta_choice"]] \
+    return config["figure.title"] + config["save.sep"] + str(config["stat.mfwords"]) \
+           + " mfw. " + config["stat.delta_algorithm"][config["stat.delta_choice"]] \
            + config["save.sep"] + format_time(config)
 
 
@@ -476,7 +494,12 @@ def evaluate_results(fig_data):
 
 
 def main():
+    #reads pydelta.ini or uses defaults
     config = get_configuration()
+    #reads overriding options from commandline
+    config = get_commandline(config)
+
+    #uses existing corpus or processes a new set of files
     if config["data.use_corpus"]:
         print("reading corpus from file corpus.csv")
         corpus = pd.read_csv("corpus.csv", index_col=0)
@@ -486,11 +509,15 @@ def main():
         if config["save.complete_corpus"]:
             corpus.to_csv("corpus.csv", encoding="utf-8")
 
-    mfw_corpus = preprocess_mfw_table(corpus, config["statistics.mfwords"])
-    deltas = calculate_delta(mfw_corpus, config["statistics.delta_choice"])
+    #creates a smaller table containing just the mfwords
+    mfw_corpus = preprocess_mfw_table(corpus, config["stat.mfwords"])
+    #calculates the specified delta
+    deltas = calculate_delta(mfw_corpus, config["stat.delta_choice"])
+    #creates a clustering using linkage and then displays the dendrogram
     fig = display_results(deltas, config)
     save_results(mfw_corpus, deltas, config)
-    if config["statistics.evaluate"]:
+    #prints results from evaluation
+    if config["stat.evaluate"]:
         evaluate_results(fig)
 
 
