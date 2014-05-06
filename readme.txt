@@ -12,12 +12,26 @@ a reliable implementation with a nice Gui and much more features you should
 have a closer look at the great R tool 'stylo': 
 https://sites.google.com/site/computationalstylistics/
 
+Installation
+Install python 3.3 (other versions of 3.x haven't been tested; 3.4 should work.)
+Install dependencies: pandas, scipy, matplotlib, profig (all on pypi).
+(from python_dir/scripts pip install library_name where library_name is pandas etc.)
+Download or checkout pydelta.py
+
+
 Usage of pydelta:
-put your files into a subdirectory called 'corpus' under the directory
-this script is living in. After the first run, you can use the file
+Put the text files, you want to analyze, into a subdirectory called 'corpus' under
+the directory this script is living in. Start the script with
+pydelta.py
+on windows (assuming python.exe is in your path):
+python pydelta.py
+
+After the first run, you can use the file
 pydelta.ini to set most of the important variables. You can use commandline
 parameters to override default settings / settings in the pydelta.ini: 
+
 pydelta.py -O figure.title:"German Novelists around 1800" -O stat.mfwords:2500
+
 (setting a title and the amount of most frequent words used for delta). Use
 pydelta -h   
 for more information or look into the ini-file to find explanations of all
