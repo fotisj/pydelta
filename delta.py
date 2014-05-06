@@ -14,7 +14,7 @@ import collections
 import os
 import pandas as pd
 import numpy as np
-import numpy.linalg as npl
+from scipy import linalg
 import csv
 import scipy.cluster.hierarchy as sch
 import matplotlib.pylab as plt
@@ -280,7 +280,7 @@ def rotation_matrixes(cov):
     Calculates the rotation matrixes E_* and D_* for the given
     covariance matrix according to Argamon
     """
-    ev, E = npl.eig(cov)
+    ev, E = linalg.eig(cov)
     D = np.diag(ev)
     # lustigerweise hab ich in meinen experimenten _nie_ ein eigvals_i=0
     # gefunden. D.h. die Reduktion können wir uns sparen:
@@ -295,11 +295,19 @@ def delta_rotated(corpus, cov):
     the axis-rotated quadratic delta using eigenvalue decomposition to 
     rotate the feature space according to the word frequency covariance 
     matrix calculated from a reference corpus
+
+    :param corpus: 
     """
     E, D = rotation_matrixes(cov)
-    # XXX
-
-
+    Di = linalg.inv(D)
+    deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
+    for d1, d2 in itertools.combinations(corpus.columns, 2):
+        diff = (corpus.loc[:,d1] - corpus.loc[:,d2])
+        print(diff.describe())
+        delta = diff.T.dot(E).dot(Di).dot(E.T).dot(diff)
+        deltas.at[d1,d2] = delta
+        deltas.at[d2,d1] = delta
+    return deltas.fillna(0)
 
 def get_author_surname(author_complete):
     """extract surname from complete name
