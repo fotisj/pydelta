@@ -2,8 +2,14 @@
 """
 calculates Burrow's Delta and Argamon's proposed variations
 tbd:
-- add evaluation for the results. 
-- write a gui to set all the configuration information
+- add a more solid evaluation for the results.
+- implement linear algebra proposal for delta from Argamon's essay
+- load deltas from file (to check our results against stylo)
+- set delta alg., mfwords and linkage alg from command line
+- replace print statements with logging mechanism?
+- refactor configuration information
+- refactor in a more OO way to improve reuse
+- write a gui to set all the configuration information, is this necessary?
 
 """
 import sys
@@ -11,15 +17,15 @@ import glob
 import re
 import collections
 import os
-import pandas as pd
 import csv
+import itertools
+from datetime import datetime
+
+import pandas as pd
 import scipy.cluster.hierarchy as sch
 import scipy.spatial.distance as ssd
 import matplotlib.pylab as plt
-import itertools
-from datetime import datetime
 import profig
-import logging
 
 
 def get_configuration():
@@ -27,85 +33,51 @@ def get_configuration():
     writes/reads a default configuration to pydelta.ini. If you want to change these parameters, use the ini file
     """
     config = profig.Config("pydelta.ini")
-
-    #where to find the corpus
     config.init("files.subdir", "corpus", comment="the subdirectory containing the text files used as input")
-
-    #file_encoding
     config.init("files.encoding", "utf-8", comment="the file encoding for the input files")
-
-    #use existing wordlist #  'yes' not implemented yet
     config.init("files.use_wordlist", False, comment="not implemented yet")
-
-    #sample size, only useful if set_limit is True
-    config.init("data.limit", 200000, comment="amount of file to be processed in chars. only useful in "
+    config.init("data.use_corpus", False, comment="use a corpus of word frequencies from file; filename is " +
+                                                  "corpus.csv")
+    config.init("data.limit", 200000, comment="amount of file to be processed in chars. only useful in " +
                                               "combination with set_limit")
-
-    #switch to extract only a sample. NOT tested yet
     config.init("data.set_limit", False, comment="only use a specified amount of the file. NOT TESTED")
-
-    #all words in lower case?
     config.init("data.lower_case", False, comment="convert all words to lower case")
-
-    #name of the file with the complete wordlist is saved
-    config.init("save.fileout", "corpus_words.csv", comment="sets the file name " +
-                                                            "to save the corpus words into a file")
-
-    #save deltas to file results.csv
+    #config.init("save.fileout", "corpus_words.csv", comment="sets the file name " +
+    #                                                        "to save the corpus words into a file")
+    config.init("save.complete_corpus", False, comment="save the complete word + freq lists")
     config.init("save.save_results", True, comment="the results (i.e. the delta measures) are written " +
-                "into the file results.csv")
-
-    #separates information in filename
+                                                   "into the file results.csv. The mfwords are saved too.")
     config.init("save.sep", "-", comment="sperates time and statistic information in the image filename")
-
-    #number of words to use from the wordlist
-    #set to 0 to use all
     config.init("statistics.mfwords", 2000, comment="number of most frequent words to use " +
-                                                    "in the calculation of delta")
-
-    #name of the chosen algorithm
-    #constraint of the profig modul: it doesn't handle dict, so
-    #we have to use a list here
+                                                    "in the calculation of delta. 0 for all words")
     config.init("statistics.delta_algorithm", ["Classic Delta",
                                                "Argamon's linear Delta",
                                                "Argamon's quadratic Delta"], comment="available delta algorithms")
-
-    #possible values are 0,1,2
     config.init("statistics.delta_choice", 0, comment="choice of the delta algorithm. 0 = classic, 1 = linear usw.")
-
     config.init("statistics.linkage_method", "ward", comment="method how the distance between the newly formed " +
                                                              "cluster and each candidate is calculated. Valid " +
-                                                             "valuues: 'ward', 'single', 'average', 'complete',   " +
+                                                             "values: 'ward', 'single', 'average', 'complete',   " +
                                                              "'weighted'. See documentation on " +
                                                              "scipy.cluster.hierarchy.linkage for details.")
-
-    config.init("statistics.evaluate", True, comment="evaluation of the results. Only useful if there are always" +
-                                                     "more than 2 texts by an author and the attribution of all " +
-                                                     "texts is known.")
-
-    #title in figure and filename
-    config.init("figure.fig_title", '3 novelists from German realism', comment="title is used in the " +
-                                                                               "figure and the name of the "+
-                                                                               "file containing the figure")
-
-    #use filenames as labels in plot
+    config.init("statistics.evaluate", False, comment="evaluation of the results. Only useful if there are always" +
+                                                      "more than 2 texts by an author and the attribution of all " +
+                                                      "texts is known.")
+    config.init("figure.fig_title", 'Stylistic analysis using Delta', comment="title is used in the " +
+                                                                              "figure and the name of the " +
+                                                                              "file containing the figure")
     config.init("figure.filenames_labels", True, comment="use the filename of the texts as labels")
-
-    #orientation of the figure
-    #allowed values are 'left' (author and title at the left side) and 'top' (author/title at the bottom)
-    config.init("figure.fig_orientation", "left", comment="orientation of the figure. allowed values: 'left', 'top'")
-
-    #font-size used in the figure
+    config.init("figure.fig_orientation", "left", comment="orientation of the figure. allowed values: " +
+                                                          "'left', (author and title at the left side)" +
+                                                          "'top' (author/title at the bottom)")
     config.init("figure.font_size", 11, comment="font-size for labels in the figure")
 
-    #writes configuration files if it doesn't exist, otherwise reads in
-    #values from there
+    #writes configuration files if it doesn't exist, otherwise reads in values from there
     config.sync()
 
     return config
 
 
-def process_files(config):
+def process_files(subdir, encoding, limit, set_limit, lower_case):
     """
     preprocessing all files ending with *.txt in corpus subdir
     all files are tokenized
@@ -116,19 +88,19 @@ def process_files(config):
     word      nr        nr
     :param: config: access to configuration settings
     """
-    if not os.path.exists(config['files.subdir']):
-        print("The directory " + config['files.subdir'] + " doesn't exist. \nPlease add a directory " +
-                                                          "with text files.\n")
+    if not os.path.exists(subdir):
+        print("The directory " + subdir + " doesn't exist. \nPlease add a directory " +
+              "with text files.\n")
         sys.exit(1)
-    filelist = glob.glob(config['files.subdir'] + os.sep + "*.txt")
+    filelist = glob.glob(subdir + os.sep + "*.txt")
     list_of_wordlists = []
     for file in filelist:
-        list_of_wordlists.append(tokenize_file(file, config["files.encoding"], config))
+        list_of_wordlists.append(tokenize_file(file, encoding, limit, set_limit, lower_case))
     corpus_words = pd.DataFrame(list_of_wordlists).fillna(0)
     return corpus_words.T
 
 
-def tokenize_file(filename, encoding, config):
+def tokenize_file(filename, encoding, limit, set_limit, lower_case):
     """
     tokenizes file and returns an unordered pandas.DataFrame
     containing the words and frequencies
@@ -139,11 +111,8 @@ def tokenize_file(filename, encoding, config):
     #read file, tokenize it, count words
     read_text_length = 0
     #reading the config information only once because of speed
-    set_limit = config["data.set_limit"]
-    limit = config["data.limit"]
-    lower_case = config["data.lower_case"]
     with open(filename, "r", encoding=encoding) as filein:
-        #print("processing " + filename)
+        print("processing " + filename)
         for line in filein:
             if set_limit:
                 if read_text_length > limit:
@@ -168,7 +137,7 @@ def save_file(corpus_words, config):
     corpus_words.to_csv("corpus_words.csv", encoding="utf-8", na_rep=0, quoting=csv.QUOTE_NONNUMERIC)
 
 
-def preprocess_mfw_table(corpus, config):
+def preprocess_mfw_table(corpus, mfwords):
     """
     sorts the table containing the frequency lists
     by the sum of all word freq
@@ -179,8 +148,8 @@ def preprocess_mfw_table(corpus, config):
     #not from me :-)
     new_corpus = corpus.loc[(-corpus.sum(axis=1)).argsort()]
     #slice only mfwords from total list
-    if config["statistics.mfwords"] > 0:
-        return new_corpus[:config["statistics.mfwords"]]
+    if mfwords > 0:
+        return new_corpus[:mfwords]
     else:
         return new_corpus
 
@@ -222,16 +191,16 @@ def corpus_means(corpus):
     return corpus.mean(axis=1)
 
 
-def calculate_delta(corpus, config):
+def calculate_delta(corpus, delta_choice):
     """
     chooses the algorithm for the calculation of delta
     after rewriting classic_delta this can be moved there
     """
-    if config["statistics.delta_choice"] == 0:
-        return classic_delta(corpus, config["statistics.mfwords"])
-    elif config["statistics.delta_choice"] == 1:
+    if delta_choice == 0:
+        return classic_delta(corpus)
+    elif delta_choice == 1:
         return linear_delta(corpus)
-    elif config["statistics.delta_choice"] == 2:
+    elif delta_choice == 2:
         return quadratic_delta(corpus)
     else:
         #tbd: use raise Exception for the following
@@ -239,7 +208,7 @@ def calculate_delta(corpus, config):
         sys.exit(1)
 
 
-def classic_delta(corpus, mfwords):
+def classic_delta(corpus):
     """
     calculates Delta in the simplified form proposed by Argamon
     """
@@ -247,7 +216,7 @@ def classic_delta(corpus, mfwords):
     stds = corpus_stds(corpus)
     deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
     for i, j in itertools.combinations(corpus.columns, 2):
-        delta = ((corpus[i] - corpus[j]).abs() / stds).sum() / mfwords
+        delta = ((corpus[i] - corpus[j]).abs() / stds).sum() / len(corpus.index)
         deltas.at[i, j] = delta
         deltas.at[j, i] = delta
     return deltas.fillna(0)
@@ -393,7 +362,8 @@ def display_results(deltas, config):
     elif config["figure.fig_orientation"] == "left":
         rotation = 0
     dendro_data = sch.dendrogram(z, orientation=config["figure.fig_orientation"], labels=shorten_labels(deltas.index),
-                   leaf_rotation=rotation, link_color_func=lambda k: 'k', leaf_font_size=config["figure.font_size"])
+                                 leaf_rotation=rotation, link_color_func=lambda k: 'k',
+                                 leaf_font_size=config["figure.font_size"])
     #get the axis
     ax = plt.gca()
     color_coding_author_names(ax, config)
@@ -423,8 +393,8 @@ def result_filename(config):
     the name contains the title and some info on the chosen statistics
     """
     return config["figure.fig_title"] + config["save.sep"] + str(config["statistics.mfwords"]) \
-             + " mfw. " + config["statistics.delta_algorithm"][config["statistics.delta_choice"]] \
-             + config["save.sep"] + format_time(config)
+           + " mfw. " + config["statistics.delta_algorithm"][config["statistics.delta_choice"]] \
+           + config["save.sep"] + format_time(config)
 
 
 def save_results(mfw_corpus, deltas, config):
@@ -432,7 +402,7 @@ def save_results(mfw_corpus, deltas, config):
     :param mfw_corpus: the DataFrame shortened to the most frequent words
     :param deltas: a DataFrame containing the Delta distance between the texts
     """
-    mfw_corpus.to_csv("corpus.csv", encoding="utf-8")
+    mfw_corpus.to_csv("mfw_corpus.csv", encoding="utf-8")
     deltas.to_csv(result_filename(config) + ".results.csv")
 
 
@@ -475,10 +445,10 @@ def error_eval(l):
     errors = 0
     d = None
     for i in range(len(l)):
-        if d == None:
+        if d is None:
             d = 0
         else:
-            if l[i] - l[i-1] > 1:
+            if l[i] - l[i - 1] > 1:
                 errors += 1
     return errors
 
@@ -502,19 +472,27 @@ def evaluate_results(fig_data):
     for x in authors.keys():
         errors += error_eval(authors[x])
 
-    print ("attributions - errors: ", len(ivl), " - ", errors)
+    print("attributions - errors: ", len(ivl), " - ", errors)
+
 
 def main():
     config = get_configuration()
-    corpus = process_files(config)
-    mfw_corpus = preprocess_mfw_table(corpus, config)
-    deltas = calculate_delta(mfw_corpus, config)
+    if config["data.use_corpus"]:
+        print("reading corpus from file corpus.csv")
+        corpus = pd.read_csv("corpus.csv", index_col=0)
+    else:
+        corpus = process_files(config['files.subdir'], config["files.encoding"], config["data.limit"],
+                               config["data.set_limit"], config["data.lower_case"])
+        if config["save.complete_corpus"]:
+            corpus.to_csv("corpus.csv", encoding="utf-8")
+
+    mfw_corpus = preprocess_mfw_table(corpus, config["statistics.mfwords"])
+    deltas = calculate_delta(mfw_corpus, config["statistics.delta_choice"])
     fig = display_results(deltas, config)
     save_results(mfw_corpus, deltas, config)
     if config["statistics.evaluate"]:
         evaluate_results(fig)
 
+
 if __name__ == '__main__':
     main()
-
-
