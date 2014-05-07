@@ -7,7 +7,6 @@ tbd:
 - load deltas from file (to check our results against stylo)
 - set delta alg., mfwords and linkage alg from command line
 - replace print statements with logging mechanism?
-- refactor configuration information
 - refactor in a more OO way to improve reuse
 - write a gui to set all the configuration information, is this necessary?
 
@@ -200,6 +199,9 @@ def diversity(values):
 
 
 def corpus_diversities(corpus):
+    """
+    calculate the 'spread' of word distributions assuming they are laplace dist.
+    """
     return corpus.apply(diversity, axis=1)
 
 
@@ -240,6 +242,7 @@ def classic_delta(corpus):
         deltas.at[i, j] = delta
         deltas.at[j, i] = delta
     return deltas.fillna(0)
+
 
 def quadratic_delta(corpus):
     """
@@ -295,6 +298,7 @@ def cov_matrix(corpus):
             result.at[j,i] = cov
     # now fill the diagonal with the variance:
     return result
+
 
 def rotation_matrixes(cov):
     """
@@ -382,15 +386,15 @@ def shorten_labels(labels):
     return new_labels
 
 
-def color_coding_author_names(ax, config):
+def color_coding_author_names(ax, fig_orientation):
     """color codes author names
     :param ax: a matplotlib axis as created by the dendogram method
     """
     lbls = []
     #get the labels from axis
-    if config["figure.fig_orientation"] == "left":
+    if fig_orientation == "left":
         lbls = ax.get_ymajorticklabels()
-    elif config["figure.fig_orientation"] == "top":
+    elif fig_orientation == "top":
         lbls = ax.get_xmajorticklabels()
     colors = ["r", "g", "b", "m", "k", "Olive", "SaddleBrown", "CadetBlue", "DarkGreen", "Brown"]
     cnt = 0
@@ -409,13 +413,14 @@ def color_coding_author_names(ax, config):
                 cnt = 0
         lbl.set_text(author + " " + title)
         new_labels.append(author + " " + title)
-    if config["figure.fig_orientation"] == "left":
+    if fig_orientation == "left":
         ax.set_yticklabels(new_labels)
-    elif config["figure.fig_orientation"] == "top":
+    elif fig_orientation == "top":
         ax.set_xticklabels(new_labels)
 
 
-def display_results(deltas, config):
+def display_results(deltas, stat_linkage_method, fig_orientation, figure_font_size, figure_title, stat_mfwords,
+                    delta_algorithm, delta_choice, save_sep):
     """
     creates a dendogram which is displayed and saved to a file
     there is a bug (I think) in the dendrogram method in scipy.cluster.hierarchy (probably)
@@ -428,61 +433,61 @@ def display_results(deltas, config):
     #only method ward demands a redundant distance matrix while the others seem to get different
     #results with a redundant matrix and with a flat one, latter seems to be ok.
     #see https://github.com/scipy/scipy/issues/2614  (not sure this is still an issue)
-    if config["stat.linkage_method"] == "ward":
+    if stat_linkage_method == "ward":
         z = sch.linkage(deltas, method='ward', metric='euclidean')
     else:
         #creating a flat representation of the dist matrix
         deltas_flat = ssd.squareform(deltas)
-        z = sch.linkage(deltas_flat, method=config["stat.linkage_method"], metric='euclidean')
+        z = sch.linkage(deltas_flat, method=stat_linkage_method, metric='euclidean')
     #print("linkage method: ", config["stat.linkage_method"])
     #create the dendrogram
-    if config["figure.fig_orientation"] == "top":
+    if fig_orientation == "top":
         rotation = 90
-    elif config["figure.fig_orientation"] == "left":
+    elif fig_orientation == "left":
         rotation = 0
-    dendro_data = sch.dendrogram(z, orientation=config["figure.fig_orientation"], labels=shorten_labels(deltas.index),
+    dendro_data = sch.dendrogram(z, orientation=fig_orientation, labels=shorten_labels(deltas.index),
                                  leaf_rotation=rotation, link_color_func=lambda k: 'k',
-                                 leaf_font_size=config["figure.font_size"])
+                                 leaf_font_size=figure_font_size)
     #get the axis
     ax = plt.gca()
-    color_coding_author_names(ax, config)
-    plt.title(config["figure.title"])
-    plt.xlabel(str(config["stat.mfwords"]) + " most frequent words. " + config["stat.delta_algorithm"][
-        config["stat.delta_choice"]])
+    color_coding_author_names(ax, fig_orientation)
+    plt.title(figure_title)
+    plt.xlabel(str(stat_mfwords) + " most frequent words. " + delta_algorithm[delta_choice])
     plt.tight_layout(2)
-    plt.savefig(result_filename(config) + ".png")
+    plt.savefig(result_filename(figure_title, save_sep, stat_mfwords, delta_algorithm, delta_choice) + ".png")
     plt.show()
     return dendro_data
 
 
-def format_time(config):
+def format_time(save_sep):
     """
     helper method. date and time are used to create a string for inclusion into the filename
     rtype: str
     """
     dt = datetime.now()
-    return u'{0}{1}{2}{3}{4}{5}{6}{7}{8}'.format(str(dt.year), config["save.sep"], str(dt.month),
-                                                 config["save.sep"], str(dt.day), config["save.sep"],
-                                                 str(dt.hour), config["save.sep"], str(dt.minute))
+    return u'{0}{1}{2}{3}{4}{5}{6}{7}{8}'.format(str(dt.year), save_sep, str(dt.month),
+                                                 save_sep, str(dt.day), save_sep,
+                                                 str(dt.hour), save_sep, str(dt.minute))
 
 
-def result_filename(config):
+def result_filename(figure_title, save_sep, stat_mfwords, delta_algorithm, delta_choice):
     """
     helper method to format the filename for the image which is saved to file
     the name contains the title and some info on the chosen statistics
     """
-    return config["figure.title"] + config["save.sep"] + str(config["stat.mfwords"]) \
-           + " mfw. " + config["stat.delta_algorithm"][config["stat.delta_choice"]] \
-           + config["save.sep"] + format_time(config)
+    return figure_title + save_sep + str(stat_mfwords) \
+           + " mfw. " + delta_algorithm[delta_choice] \
+           + save_sep + format_time(save_sep)
 
 
-def save_results(mfw_corpus, deltas, config):
+def save_results(mfw_corpus, deltas, figure_title, save_sep, stat_mfwords, delta_algorithm, delta_choice):
     """saves results to files
     :param mfw_corpus: the DataFrame shortened to the most frequent words
     :param deltas: a DataFrame containing the Delta distance between the texts
     """
     mfw_corpus.to_csv("mfw_corpus.csv", encoding="utf-8")
-    deltas.to_csv(result_filename(config) + ".results.csv")
+    deltas.to_csv(result_filename(figure_title, save_sep, stat_mfwords, delta_algorithm, delta_choice)
+                                  + ".results.csv", encoding="utf-8")
 
 
 def check_max(s):
@@ -498,7 +503,7 @@ def check_max(s):
 
 def classified_correctly(s, max_value):
     """
-    checks whether the distance of a given text to texts of other authors is smaller than to
+    ATT: DON'T USE THIS. checks whether the distance of a given text to texts of other authors is smaller than to
      texts of the same author
     :param: s: a pd.Series containing deltas
     :max_value: the largest distance to a text of the same author
@@ -575,8 +580,11 @@ def main():
     #calculates the specified delta
     deltas = calculate_delta(mfw_corpus, config["stat.delta_choice"])
     #creates a clustering using linkage and then displays the dendrogram
-    fig = display_results(deltas, config)
-    save_results(mfw_corpus, deltas, config)
+    fig = display_results(deltas, config["stat.linkage_method"], config["figure.fig_orientation"],
+                          config["figure.font_size"], config["figure.title"], config["stat.mfwords"],
+                          config["stat.delta_algorithm"], config["stat.delta_choice"], config["save.sep"])
+    save_results(mfw_corpus, deltas, config["figure.title"], config["save.sep"], config["stat.mfwords"],
+                 config["stat.delta_algorithm"], config["stat.delta_choice"])
     #prints results from evaluation
     if config["stat.evaluate"]:
         evaluate_results(fig)
