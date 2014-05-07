@@ -15,8 +15,10 @@ https://sites.google.com/site/computationalstylistics/
 Installation
 Install python 3.3 (other versions of 3.x haven't been tested; 3.4 should work.)
 Install dependencies: pandas, scipy, matplotlib, profig (all on pypi).
-(from python_dir/scripts pip install library_name where library_name is pandas etc.)
 Download or checkout pydelta.py
+(you can run `pip install -r requirements.txt` to get them all, or in general:
+from python_dir/scripts pip install library_name where library_name is pandas
+etc.)
 
 
 Usage of pydelta:
