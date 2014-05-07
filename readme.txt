@@ -7,7 +7,7 @@ Foundations," Literary and linguistic computing, vol. 23, iss. 2, pp. 131-147, 2
 
 Delta is a measure to describe the stylistic difference between texts. It is used
 in computational stylistics, especially in author attribution. 
-This is implementation is for research purposes only, If you want to use 
+This implementation is for research purposes only, If you want to use
 a reliable implementation with a nice Gui and much more features you should 
 have a closer look at the great R tool 'stylo': 
 https://sites.google.com/site/computationalstylistics/
@@ -20,15 +20,24 @@ Download or checkout pydelta.py
 
 
 Usage of pydelta:
+The first time you run the script, use:
+ pydelta.py -O files.ini True
+Thus you create a configuration file (pydelta.ini) which allows you to set most
+parameters of the script without changing the script.
+Normal use:
 Put the text files, you want to analyze, into a subdirectory called 'corpus' under
-the directory this script is living in. Start the script with
-pydelta.py
+the directory this script is living in. The filenames for the corpus should have
+the format authorname_title.txt. The script assumes that the name has the format
+surname, firstname
+but should survive other delimiter.
+
+Start the script with
+ pydelta.py
 on windows (assuming python.exe is in your path):
 python pydelta.py
 
-After the first run, you can use the file
-pydelta.ini to set most of the important variables. You can use commandline
-parameters to override default settings / settings in the pydelta.ini: 
+You can always use commandline parameters to override default settings
+/ settings in the pydelta.ini:
 
 pydelta.py -O figure.title:"German Novelists around 1800" -O stat.mfwords:2500
 
@@ -36,8 +45,6 @@ pydelta.py -O figure.title:"German Novelists around 1800" -O stat.mfwords:2500
 pydelta -h   
 for more information or look into the ini-file to find explanations of all
 parameters.
-The filenames for the corpus should have the format authorname_title.txt (the first part of the 
-authorname is used to color the labels)
 
 Thanks go to
 Thorsten Vitt for his help with profiling some critical parts and general improvements

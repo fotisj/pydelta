@@ -35,6 +35,7 @@ def get_configuration():
     writes/reads a default configuration to pydelta.ini. If you want to change these parameters, use the ini file
     """
     config = profig.Config("pydelta.ini")
+    config.init("files.ini", False, comment="if true writes a configuration file to disk")
     config.init("files.subdir", "corpus", comment="the subdirectory containing the text files used as input")
     config.init("files.encoding", "utf-8", comment="the file encoding for the input files")
     config.init("files.use_wordlist", False, comment="not implemented yet")
@@ -334,6 +335,7 @@ def delta_rotated(corpus, cov):
         deltas.at[d2,d1] = delta
     return deltas.fillna(0)
 
+
 def get_author_surname(author_complete):
     """extract surname from complete name
     :param author_complete:
@@ -564,6 +566,10 @@ def main():
     config = get_configuration()
     #reads overriding options from commandline
     config = get_commandline(config)
+
+    #only write pydelta.ini and then exit
+    if config["files.ini"]:
+        sys.exit()
 
     #uses existing corpus or processes a new set of files
     if config["data.use_corpus"]:
