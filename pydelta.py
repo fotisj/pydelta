@@ -619,7 +619,8 @@ def main():
                                config["data.set_limit"], config["data.lower_case"])
     else:
         refcorpus = None
-    deltas = calculate_delta(mfw_corpus, delta_choice, refcorpus)
+    complex_deltas = calculate_delta(mfw_corpus, delta_choice, refcorpus)
+    deltas = complex_deltas.abs()
     #creates a clustering using linkage and then displays the dendrogram
     fig = display_results(deltas, config["stat.linkage_method"], config["figure.fig_orientation"],
                           config["figure.font_size"], config["figure.title"], config["stat.mfwords"],
