@@ -3,7 +3,7 @@
 calculates Burrow's Delta and Argamon's proposed variations
 tbd:
 - add a more solid evaluation for the results.
-- implement linear algebra proposal for delta from Argamon's essay
+- rotated_delta: convert the complex results, use abs()?
 - load deltas from file (to check our results against stylo)
 - set delta alg., mfwords and linkage alg from command line
 - replace print statements with logging mechanism?
@@ -37,6 +37,7 @@ def get_configuration():
     config = profig.Config("pydelta.ini")
     config.init("files.ini", False, comment="if true writes a configuration file to disk")
     config.init("files.subdir", "corpus", comment="the subdirectory containing the text files used as input")
+    config.init("files.refcorpus", "refcorpus", comment="the reference corpus required for some methods")
     config.init("files.encoding", "utf-8", comment="the file encoding for the input files")
     config.init("files.use_wordlist", False, comment="not implemented yet")
     config.init("data.use_corpus", False, comment="use a corpus of word frequencies from file; filename is " +
@@ -53,9 +54,10 @@ def get_configuration():
     config.init("save.sep", "-", comment="sperates time and statistic information in the image filename")
     config.init("stat.mfwords", 2000, comment="number of most frequent words to use " +
                                                     "in the calculation of delta. 0 for all words")
-    config.init("stat.delta_algorithm", ["Classic Delta",
+    config.init("stat.delta_algorithm", ["Classic Delta", # XXX
                                                "Argamon's linear Delta",
-                                               "Argamon's quadratic Delta"], comment="available delta algorithms")
+                                               "Argamon's quadratic Delta",
+                                               "Argamon's axis-rotated Delta"], comment="available delta algorithms")
     config.init("stat.delta_choice", 0, comment="choice of the delta algorithm. 0 = classic, 1 = linear usw.")
     config.init("stat.linkage_method", "ward", comment="method how the distance between the newly formed " +
                                                              "cluster and each candidate is calculated. Valid " +
@@ -97,7 +99,7 @@ def get_commandline(config):
 
 
 
-def process_files(subdir, encoding, limit, set_limit, lower_case):
+def process_files(subdir, encoding="utf-8", limit=2000, set_limit=False, lower_case=False):
     """
     preprocessing all files ending with *.txt in corpus subdir
     all files are tokenized
@@ -107,6 +109,7 @@ def process_files(subdir, encoding, limit, set_limit, lower_case):
     word      nr        nr
     word      nr        nr
     :param: config: access to configuration settings
+    :param: filter: if defined, return only those words that are in the given list
     """
     if not os.path.exists(subdir):
         print("The directory " + subdir + " doesn't exist. \nPlease add a directory " +
@@ -116,8 +119,8 @@ def process_files(subdir, encoding, limit, set_limit, lower_case):
     list_of_wordlists = []
     for file in filelist:
         list_of_wordlists.append(tokenize_file(file, encoding, limit, set_limit, lower_case))
-    corpus_words = pd.DataFrame(list_of_wordlists).fillna(0)
-    return corpus_words.T
+    corpus_words = pd.DataFrame(list_of_wordlists).fillna(0).T
+    return corpus_words
 
 
 def tokenize_file(filename, encoding, limit, set_limit, lower_case):
@@ -214,17 +217,20 @@ def corpus_means(corpus):
     return corpus.mean(axis=1)
 
 
-def calculate_delta(corpus, delta_choice):
+def calculate_delta(corpus, delta_choice, refcorpus=None):
     """
     chooses the algorithm for the calculation of delta
     after rewriting classic_delta this can be moved there
     """
+    # XXX use functions directly & set a title attribute on them?
     if delta_choice == 0:
         return classic_delta(corpus)
     elif delta_choice == 1:
         return linear_delta(corpus)
     elif delta_choice == 2:
         return quadratic_delta(corpus)
+    elif delta_choice == 3:
+        return rotated_delta(corpus, refcorpus)
     else:
         #tbd: use raise Exception for the following
         print("ERROR: You have to choose an algorithm for Delta.")
@@ -274,8 +280,13 @@ def linear_delta(corpus):
     return deltas.fillna(0)
 
 
+# rotated quadratic delta. This could be moved into the main delta function
+# when it is finished
 
-def cov_matrix(corpus):
+def _cov_matrix(corpus):
+    # There's also pd.DataFrame.cov, which calculates the unbiased covariance
+    # (normalized by n-1), but is much faster. XXX evaluate whether it would be
+    # problematic to use that instead of our own _cov_matrix
     """
     Calculates the covariance matrix S consisting of the covariances $\sigma_{ij
     }$ for the words $w_i, w_j$ in the given comparison corpus.
@@ -301,40 +312,57 @@ def cov_matrix(corpus):
     return result
 
 
-def rotation_matrixes(cov):
+def _rotation_matrixes(cov):
     """
     Calculates the rotation matrixes E_* and D_* for the given
     covariance matrix according to Argamon
     """
     ev, E = linalg.eig(cov)
-    D = np.diag(ev)
-    # lustigerweise hab ich in meinen experimenten _nie_ ein eigvals_i=0
-    # gefunden. D.h. die Reduktion können wir uns sparen:
-    if 0 in ev:
-        raise Exception("Oops. Seems we need to implement the reduction function.")
-    return (E, D)
+    
+    # Only use eigenvalues != 0 and the corresponding eigenvectors
+    select = np.array(ev, dtype=bool)
+    D_ = np.diag(ev[select])
+    E_ = E[:, select]
+    return (E_, D_)
 
 
-def delta_rotated(corpus, cov):
-    """
+def _rotated_delta(E, Dinv, corpus):
+    """Performs the actual delta calculation."""
+    deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
+    nwords = corpus.index.size
+    for d1, d2 in itertools.combinations(corpus.columns, 2):
+        diff = (corpus.loc[:, d1] - corpus.loc[:, d2]).reshape(nwords, 1)
+        delta = diff.T.dot(E).dot(Dinv).dot(E.T).dot(diff)
+        #       ------     -      ----      ---      ----   
+        # dim:   1,n      n,m     m,m       m,n       n,1  -> 1,1
+        deltas.at[d1, d2] = delta[0, 0]
+        deltas.at[d2, d1] = delta[0, 0]
+    return deltas.fillna(0)
+
+def rotated_delta(corpus, refcorpus, cov_alg='argamon'):
+    r"""
     Calculates $\Delta_{Q,\not\perp}^{(n)}$ according to Argamon, i.e.
     the axis-rotated quadratic delta using eigenvalue decomposition to 
     rotate the feature space according to the word frequency covariance 
     matrix calculated from a reference corpus
 
-    :param corpus: 
+    :param corpus: Pandas Dataframe (word×documents -> word frequencies) for
+                   which to calculate the document deltas
+    :param refcorpus: Pandas Dataframe with the reference corpus 
+    :cov_alg: covariance algorithm choice, 'argamon', 'nonbiased' or a function
     """
-    E, D = rotation_matrixes(cov)
-    Di = linalg.inv(D)
-    deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
-    for d1, d2 in itertools.combinations(corpus.columns, 2):
-        diff = (corpus.loc[:,d1] - corpus.loc[:,d2])
-        print(diff.describe())
-        delta = diff.T.dot(E).dot(Di).dot(E.T).dot(diff)
-        deltas.at[d1,d2] = delta
-        deltas.at[d2,d1] = delta
-    return deltas.fillna(0)
-
+    if refcorpus is None:
+        raise Exception("rotated delta requires a reference corpus.")
+    refc = refcorpus.loc[corpus.index].fillna(0)
+    if callable(cov_alg):
+        cov = cov_alg(refc)
+    elif cov_alg == 'argamon':
+        cov = _cov_matrix(refc)
+    elif cov_alg == 'nonbiased':
+        cov = refc.cov()
+    E_, D_ = _rotation_matrixes(cov)
+    D_inv = linalg.inv(D_)
+    return _rotated_delta(E_, D_inv, corpus)
 
 def get_author_surname(author_complete):
     """extract surname from complete name
@@ -421,8 +449,9 @@ def color_coding_author_names(ax, fig_orientation):
         ax.set_xticklabels(new_labels)
 
 
-def display_results(deltas, stat_linkage_method, fig_orientation, figure_font_size, figure_title, stat_mfwords,
-                    delta_algorithm, delta_choice, save_sep):
+def display_results(deltas, stat_linkage_method, fig_orientation,
+        figure_font_size, figure_title, stat_mfwords, delta_algorithm,
+        delta_choice, save_sep):
     """
     creates a dendogram which is displayed and saved to a file
     there is a bug (I think) in the dendrogram method in scipy.cluster.hierarchy (probably)
@@ -576,15 +605,21 @@ def main():
         print("reading corpus from file corpus.csv")
         corpus = pd.read_csv("corpus.csv", index_col=0)
     else:
-        corpus = process_files(config['files.subdir'], config["files.encoding"], config["data.limit"],
-                               config["data.set_limit"], config["data.lower_case"])
+        corpus = process_files(config['files.subdir'], config["files.encoding"], config["data.limit"], config["data.set_limit"], config["data.lower_case"])
         if config["save.complete_corpus"]:
             corpus.to_csv("corpus.csv", encoding="utf-8")
 
     #creates a smaller table containing just the mfwords
     mfw_corpus = preprocess_mfw_table(corpus, config["stat.mfwords"])
     #calculates the specified delta
-    deltas = calculate_delta(mfw_corpus, config["stat.delta_choice"])
+
+    delta_choice = config["stat.delta_choice"]
+    if delta_choice == 3:
+        refcorpus = process_files(config['files.refcorpus'], config["files.encoding"], config["data.limit"],
+                               config["data.set_limit"], config["data.lower_case"])
+    else:
+        refcorpus = None
+    deltas = calculate_delta(mfw_corpus, delta_choice, refcorpus)
     #creates a clustering using linkage and then displays the dendrogram
     fig = display_results(deltas, config["stat.linkage_method"], config["figure.fig_orientation"],
                           config["figure.font_size"], config["figure.title"], config["stat.mfwords"],
