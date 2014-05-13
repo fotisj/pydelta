@@ -339,7 +339,7 @@ def _rotated_delta(E, Dinv, corpus):
         deltas.at[d2, d1] = delta[0, 0]
     return deltas.fillna(0)
 
-def rotated_delta(corpus, refcorpus, cov_alg='argamon'):
+def rotated_delta(corpus, refcorpus, cov_alg='nonbiased'):
     r"""
     Calculates $\Delta_{Q,\not\perp}^{(n)}$ according to Argamon, i.e.
     the axis-rotated quadratic delta using eigenvalue decomposition to 
@@ -359,7 +359,7 @@ def rotated_delta(corpus, refcorpus, cov_alg='argamon'):
     elif cov_alg == 'argamon':
         cov = _cov_matrix(refc)
     elif cov_alg == 'nonbiased':
-        cov = refc.cov()
+        cov = refc.T.cov()
     E_, D_ = _rotation_matrixes(cov)
     D_inv = linalg.inv(D_)
     return _rotated_delta(E_, D_inv, corpus)
