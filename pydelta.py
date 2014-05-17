@@ -590,6 +590,68 @@ def evaluate_results(fig_data):
     print("attributions - errors: ", len(ivl), " - ", errors)
 
 
+def _purify_delta(delta):
+    """
+    Retains only the non-duplicate meaningful deltas.
+
+    I.e. the diagonal and the lower left triangle are set to np.na.
+    """
+    return delta.where(np.triu(np.ones(delta.shape), k=1))
+
+def delta_values(delta):
+    """
+    Converts the given n×n Delta matrix to a nC2 long series of distinct delta
+    values – i.e. duplicates from the lower triangle and zeros from the
+    diagonal are removed.
+    """
+    return _purify_delta(delta).unstack().dropna()
+
+def normalize_delta(delta):
+    """Normalizes the given delta matrix using the z-Score."""
+    deltas = delta_values(delta)
+    return (delta - deltas.mean()) / deltas.std()
+
+def _author(filename):
+    return filename.partition("_")[0]
+
+def _partition_deltas(deltas, indexfunc=_author):
+    """
+    Partitions the given deltas by same author.
+    """
+    same = pd.DataFrame(index=deltas.index, columns=deltas.index)
+    diff = pd.DataFrame(index=deltas.index, columns=deltas.index)
+    # c'mon. This must go more elegant?
+    for d1, d2 in itertools.combinations(deltas.columns, 2):
+        if indexfunc(d1) == indexfunc(d2):
+            same.at[d1, d2] = deltas.at[d1, d2]
+        else:
+            diff.at[d1, d2] = deltas.at[d1, d2]
+    return (same, diff)
+
+def evaluate_deltas(deltas, verbose=True):
+    """
+    Simple delta quality score for the given delta matrix:
+    The difference between the means of the standardized differences between
+    works of different authors and works of the same author.
+
+    Larger scores = better.
+
+    :param verbose: (default True) also print the score and intermediate
+    results
+    """
+    d_equal, d_different = _partition_deltas(normalize_delta(deltas))
+    equal, different = delta_values(d_equal), delta_values(d_different)
+    score = different.mean() - equal.mean()
+    if verbose:
+        print("Normalized deltas for same author, mean=%g, std=%g:" %
+                (equal.mean(), equal.std()))
+        print("Normalized deltas for different author, mean=%g, std=%g:" %
+                (different.mean(), different.std()))
+        print("### Simple Delta Quality Score = %g" % score)
+    return score
+
+
+
 def main():
     #reads pydelta.ini or uses defaults
     config = get_configuration()
@@ -621,6 +683,8 @@ def main():
         refcorpus = None
     complex_deltas = calculate_delta(mfw_corpus, delta_choice, refcorpus)
     deltas = complex_deltas.abs()
+
+
     #creates a clustering using linkage and then displays the dendrogram
     fig = display_results(deltas, config["stat.linkage_method"], config["figure.fig_orientation"],
                           config["figure.font_size"], config["figure.title"], config["stat.mfwords"],
@@ -630,6 +694,7 @@ def main():
     #prints results from evaluation
     if config["stat.evaluate"]:
         evaluate_results(fig)
+        evaluate_deltas(deltas)
 
 
 if __name__ == '__main__':
