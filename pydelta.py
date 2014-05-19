@@ -29,8 +29,10 @@ import scipy.spatial.distance as ssd
 import matplotlib.pylab as plt
 import profig
 
+from funcreg import *
 
-def get_configuration():
+
+def get_configuration(delta_functions):
     """
     writes/reads a default configuration to pydelta.ini. If you want to change these parameters, use the ini file
     """
@@ -58,7 +60,10 @@ def get_configuration():
                                                "Argamon's linear Delta",
                                                "Argamon's quadratic Delta",
                                                "Argamon's axis-rotated Delta"], comment="available delta algorithms")
-    config.init("stat.delta_choice", 0, comment="choice of the delta algorithm. 0 = classic, 1 = linear usw.")
+    config.init("stat.delta_choice", 0, comment="choice of the delta algorithm. 0 = classic, 1 = linear usw.") # FIXME remove
+    config.init("stat.delta_algorithm", next(iter(delta_functions)), comment="Available Algorithms: " + ", ".join(delta_functions))
+
+
     config.init("stat.linkage_method", "ward", comment="method how the distance between the newly formed " +
                                                              "cluster and each candidate is calculated. Valid " +
                                                              "values: 'ward', 'single', 'average', 'complete',   " +
@@ -651,16 +656,45 @@ def evaluate_deltas(deltas, verbose=True):
     return score
 
 
+def get_algorithms():
+    reg = FunctionRegistry()
+    reg.register(classic_delta) # TODO decorators?
+    reg.register(quadratic_delta)
+    reg.register(linear_delta)
+    reg.register(rotated_delta)
+
+    from scipy.spatial import distance
+
+    # Non-boolean non-parametric distance functions.
+    # TODO implement parameters in funcreg
+    reg.register(delta_function(distance.braycurtis))
+    reg.register(delta_function(distance.canberra))
+    reg.register(delta_function(distance.chebyshev))
+    reg.register(delta_function(distance.cityblock))
+    reg.register(delta_function(distance.correlation))
+    reg.register(delta_function(distance.cosine))
+    reg.register(delta_function(distance.euclidean))
+    reg.register(delta_function(distance.hamming))
+    reg.register(delta_function(distance.sqeuclidean))
+
+    return reg
+
+
 
 def main():
+    # FIXME ugly. Refactor the config handling for the registry into the function
+    # registry and integrate this into Fotis' OO structure
+    delta_functions = get_algorithms()
     #reads pydelta.ini or uses defaults
-    config = get_configuration()
+    config = get_configuration(delta_functions)
     #reads overriding options from commandline
     config = get_commandline(config)
 
     #only write pydelta.ini and then exit
     if config["files.ini"]:
         sys.exit()
+
+    delta_functions = get_algorithms()
 
     #uses existing corpus or processes a new set of files
     if config["data.use_corpus"]:
@@ -675,20 +709,22 @@ def main():
     mfw_corpus = preprocess_mfw_table(corpus, config["stat.mfwords"])
     #calculates the specified delta
 
-    delta_choice = config["stat.delta_choice"]
-    if delta_choice == 3:
+    delta = delta_functions[config["stat.delta_algorithm"]]
+
+    if delta_functions.needs_refcorpus(delta):
         refcorpus = process_files(config['files.refcorpus'], config["files.encoding"], config["data.limit"],
                                config["data.set_limit"], config["data.lower_case"])
+        complex_deltas = delta(mfw_corpus, refcorpus)
+        deltas = complex_deltas.abs()   # FIXME factor into the function itself
     else:
-        refcorpus = None
-    complex_deltas = calculate_delta(mfw_corpus, delta_choice, refcorpus)
-    deltas = complex_deltas.abs()
+        complex_deltas = delta(mfw_corpus)
+        deltas = complex_deltas.abs()
 
 
     #creates a clustering using linkage and then displays the dendrogram
     fig = display_results(deltas, config["stat.linkage_method"], config["figure.fig_orientation"],
                           config["figure.font_size"], config["figure.title"], config["stat.mfwords"],
-                          config["stat.delta_algorithm"], config["stat.delta_choice"], config["save.sep"])
+                          config["stat.delta_algorithm"], config["stat.delta_choice"], config["save.sep"]) #FIXME
     save_results(mfw_corpus, deltas, config["figure.title"], config["save.sep"], config["stat.mfwords"],
                  config["stat.delta_algorithm"], config["stat.delta_choice"])
     #prints results from evaluation
