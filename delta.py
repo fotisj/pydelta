@@ -289,17 +289,15 @@ class Delta(pd.DataFrame):
         """
         calculates Eder's Delta
         """
+        n = corpus.index.size
+        rank = pd.Series(index=corpus.index, data=range(0, n))
         deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
         for i, j in itertools.combinations(corpus.columns, 2):
-            delta = 0
-            for word in corpus.index:
-                rank = list(corpus.index).index(word)
-                n = len(corpus.index)
-                delta += abs((corpus[i].loc[word] - corpus[j].loc[word]) / corpus.loc[word].std()) * ((n  - rank + 1) / n)
+            delta = ((corpus.loc[:, i] - corpus.loc[:, j]).abs() /
+                    corpus.stds() * (n - rank + 1) / n).sum() / n
             deltas.at[i, j] = delta
             deltas.at[j, i] = delta
         return deltas.fillna(0)
-
 
     @staticmethod
     def euclidean_distance(a, b):
