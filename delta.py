@@ -8,7 +8,7 @@ tbd:
 - replace print statements with logging mechanism?
 - redo the saving of results in a more organized manner
 """
-import sys
+
 import glob
 import re
 import collections
@@ -26,19 +26,89 @@ import scipy.spatial.distance as ssd
 import matplotlib.pylab as plt
 import profig
 
+const = collections.namedtuple('Constants',
+                               ["CLASSIC_DELTA", "LINEAR_DELTA", "QUADRATIC_DELTA", "ROTATED_DELTA", "EDERS_DELTA",
+                                "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE"])._make(range(9))
+
+
+class Config():
+    cfg = None
+
+    def __init__(self, commandline=False):
+        config = profig.Config("pydelta.ini")
+        self.cfg = config
+        self.initialize()
+        if commandline:
+            self.get_commandline()
+
+    def initialize(self):
+        """
+        writes/reads a default configuration to pydelta.ini. If you want to change these parameters, use the ini file
+        """
+        self.cfg.init("files.ini", False, comment="if true writes a configuration file to disk")
+        self.cfg.init("files.subdir", "corpus", comment="the subdirectory containing the text files used as input")
+        self.cfg.init("files.refcorpus", "refcorpus", comment="the reference corpus required for some methods")
+        self.cfg.init("files.encoding", "utf-8", comment="the file encoding for the input files")
+        self.cfg.init("files.use_wordlist", False, comment="not implemented yet")
+        self.cfg.init("data.use_corpus", False, comment="use a corpus of word frequencies from file; filename is " +
+                                                        "corpus.csv")
+        self.cfg.init("data.lower_case", False, comment="convert all words to lower case")
+        self.cfg.init("save.complete_corpus", False, comment="save the complete word + freq lists")
+        self.cfg.init("save.save_results", True, comment="the results (i.e. the delta measures) are written " +
+                                                         "into the file results.csv. The mfwords are saved too.")
+        self.cfg.init("stat.mfwords", 2000, comment="number of most frequent words to use " +
+                                                    "in the calculation of delta. 0 for all words")
+        self.cfg.init("stat.delta_choice", 0, comment="Supported Algorithms: 0. CLASSIC_DELTA, "
+                                                      "1. LINEAR_DELTA, 2. QUADRATIC_DELTA, 3. ROTATED_DELTA, 4. EDERS_DELTA, 5. EDERS_SIMPLE_DELTA,"
+                                                      "6. EUCLEDIAN, 7. MANHATTAN, 8. COSINE")
+        self.cfg.init("stat.linkage_method", "ward", comment="method how the distance between the newly formed " +
+                                                             "cluster and each candidate is calculated. Valid " +
+                                                             "values: 'ward', 'single', 'average', 'complete',   " +
+                                                             "'weighted'. See documentation on " +
+                                                             "scipy.cluster.hierarchy.linkage for details.")
+        self.cfg.init("stat.evaluate", False, comment="evaluation of the results. Only useful if there are always" +
+                                                      "more than 2 texts by an author and the attribution of all " +
+                                                      "texts is known.")
+        self.cfg.init("figure.title", 'Stylistic analysis using Delta', comment="title is used in the " +
+                                                                                "figure and the name of the " +
+                                                                                "file containing the figure")
+        self.cfg.init("figure.filenames_labels", True, comment="use the filename of the texts as labels")
+        self.cfg.init("figure.fig_orientation", "left", comment="orientation of the figure. allowed values: " +
+                                                                "'left', (author and title at the left side)" +
+                                                                "'top' (author/title at the bottom)")
+        self.cfg.init("figure.font_size", 11, comment="font-size for labels in the figure")
+        self.cfg.init("figure.show", True, comment="show figure interactively if true")
+
+        #writes configuration files if it doesn't exist, otherwise reads in values from there
+        self.cfg.sync()
+
+    def get_commandline(self):
+        """
+        allows user to override all settings using commandline arguments.
+        """
+        help_msg = " ".join([str(x) for x in self.cfg])
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-O', dest='options', action='append',
+                            metavar='<key>:<value>', help='Overrides an option in the config file.' +
+                                                          '\navailable options:\n' + help_msg)
+        args = parser.parse_args()
+        # update option values
+        if args.options is not None:
+            self.cfg.update(opt.split(':') for opt in args.options)
+
 
 class Corpus(pd.DataFrame):
-    def __init__(self, subdir=None, corpus=None, encoding="utf-8", limit=2000, set_limit=False, lower_case=False):
-        if subdir is None and corpus is None:
-            super().__init__(pd.read_csv("corpus.csv", index_col=0))
-        elif subdir is not None and corpus is None:
-            super().__init__(self.process_files(subdir, encoding, limit, set_limit, lower_case))
+    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False):
+        if subdir is not None:
+            super().__init__(self.process_files(subdir, encoding, lower_case))
+        elif file is not None:
+            super().__init__(pd.read_csv(file, index_col=0))
         elif corpus is not None:
             super().__init__(corpus)
         else:
             raise ValueError("Error. Only one of subdir and corpusfile can be not None")
 
-    def process_files(self, subdir, encoding, limit, set_limit, lower_case):
+    def process_files(self, subdir, encoding, lower_case):
         """
         preprocessing all files ending with *.txt in corpus subdir
         all files are tokenized
@@ -56,17 +126,19 @@ class Corpus(pd.DataFrame):
         filelist = glob.glob(subdir + os.sep + "*.txt")
         list_of_wordlists = []
         for file in filelist:
-            list_of_wordlists.append(self.tokenize_file(file, encoding, limit, set_limit, lower_case))
+            list_of_wordlists.append(self.tokenize_file(file, encoding, lower_case))
         return pd.DataFrame(list_of_wordlists).fillna(0).T
 
-    def tokenize_file(self, filename, encoding, limit, set_limit, lower_case):
+    @staticmethod
+    def tokenize_file(filename, encoding, lower_case):
         """
         tokenizes file and returns an unordered pandas.DataFrame
         containing the words and frequencies
         standard encoding = utf-8
         """
         all_words = collections.defaultdict(int)
-
+        set_limit = False  # placeholder for later changes
+        limit = 2000  # the same
         #read file, tokenize it, count words
         read_text_length = 0
         #reading the config information only once because of speed
@@ -122,7 +194,8 @@ class Corpus(pd.DataFrame):
            words as index"""
         return self.corpus.median(axis=1)
 
-    def diversity(self, values):
+    @staticmethod
+    def diversity(values):
         """
         calculates the spread or diversity (wikipedia) of a laplace distribution of values
         see Argamon's Interpreting Burrow's Delta p. 137 and
@@ -139,64 +212,106 @@ class Corpus(pd.DataFrame):
         return self.apply(self.diversity, axis=1)
 
 
-class Delta():
-    results = pd.DataFrame()
+class Delta(pd.DataFrame):
+    """
+    Dataframe which contains the results from a set of different stylometric distance measures.
+    a detailted description of their formulas can be found here
+    https://sites.google.com/site/computationalstylistics/stylo/stylo_howto.pdf
 
+    """
     def __init__(self, corpus, delta_choice, refcorpus=None):
         """
         chooses the algorithm for the calculation of delta
         """
-        # XXX use functions directly & set a title attribute on them?
-        if delta_choice == 0:
-            self.results = self.classic_delta(corpus)
-        elif delta_choice == 1:
-            self.results = self.linear_delta(corpus)
-        elif delta_choice == 2:
-            self.results = self.quadratic_delta(corpus)
-        elif delta_choice == 3:
-            self.results = self.rotated_delta(corpus, refcorpus).abs()
+        if delta_choice == const.CLASSIC_DELTA:
+            super().__init__(self.delta_function(corpus, self.classic_delta, corpus.stds(), len(corpus.index)))
+        elif delta_choice == const.LINEAR_DELTA:
+            super().__init__(self.delta_function(corpus, self.linear_delta, diversities=corpus.diversities()))
+        elif delta_choice == const.QUADRATIC_DELTA:
+            super().__init__(self.delta_function(corpus, self.quadratic_delta, vars_=corpus.stds() ** 2))
+        elif delta_choice == const.ROTATED_DELTA:
+            super().__init__(self.rotated_delta(corpus, refcorpus).abs())
+        elif delta_choice == const.EUCLIDEAN:
+            super().__init__(self.delta_function(corpus, self.euclidean_distance))
+        elif delta_choice == const.MANHATTAN:
+            super().__init__(self.delta_function(corpus, self.manhattan_distance))
+        elif delta_choice == const.EDERS_DELTA:
+            super().__init__(self.eders_delta(corpus))
+        elif delta_choice == const.EDERS_SIMPLE_DELTA:
+            super().__init__(self.delta_function(corpus, self.simple_eder))
+        elif delta_choice == const.COSINE:
+            super().__init__(self.delta_function(corpus, self.cosine))
         else:
             raise Exception("ERROR: You have to choose an algorithm for Delta.")
 
-    def classic_delta(self, corpus):
-        """
-        calculates Delta in the simplified form proposed by Argamon
-        """
-        stds = corpus.stds()
+    @staticmethod
+    def delta_function(corpus, func, *args, **kwargs):
         deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
         for i, j in itertools.combinations(corpus.columns, 2):
-            delta = ((corpus[i] - corpus[j]).abs() / stds).sum() / len(corpus.index)
+            delta = func(corpus[i], corpus[j], *args, **kwargs)
             deltas.at[i, j] = delta
             deltas.at[j, i] = delta
         return deltas.fillna(0)
 
-    def quadratic_delta(self, corpus):
+    @staticmethod
+    def classic_delta(a, b, stds, n):
+        """
+        Burrow's Classic Delta
+        """
+        return ((a - b).abs() / stds).sum() / n
+
+    @staticmethod
+    def quadratic_delta(a, b, vars_):
         """
         Argamon's quadratic Delta
         """
-        vars_ = corpus.stds() ** 2
-        deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
-        for i, j in itertools.combinations(corpus.columns, 2):
-            delta = ((corpus[i] - corpus[j]) ** 2 / vars_).sum()
-            deltas.at[i, j] = delta
-            deltas.at[j, i] = delta
-        return deltas.fillna(0)
+        return ((a - b) ** 2 / vars_).sum()
 
-    def linear_delta(self, corpus):
+    @staticmethod
+    def linear_delta(a, b, diversities):
         """
         Argamon's linear Delta
         """
-        diversities = corpus.diversities()
+        return ((a - b).abs() / diversities).sum()
+
+    # rotated quadratic delta. This could be moved into the main delta function
+    # when it is finished
+
+    @staticmethod
+    def simple_eder(a, b):
+        """
+        Eder's simple Delta
+        """
+        return (np.sqrt(a) - np.sqrt(b)).abs().sum()
+
+    @staticmethod
+    def eders_delta(corpus):
+        """
+        calculates Eder's Delta
+        """
         deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
         for i, j in itertools.combinations(corpus.columns, 2):
-            delta = ((corpus[i] - corpus[j]).abs() / diversities).sum()
+            delta = 0
+            for word in corpus.index:
+                rank = list(corpus.index).index(word)
+                n = len(corpus.index)
+                delta += abs((corpus[i].loc[word] - corpus[j].loc[word]) / corpus.loc[word].std()) * ((n  - rank + 1) / n)
             deltas.at[i, j] = delta
             deltas.at[j, i] = delta
         return deltas.fillna(0)
 
 
-    # rotated quadratic delta. This could be moved into the main delta function
-    # when it is finished
+    @staticmethod
+    def euclidean_distance(a, b):
+        return ssd.euclidean(a, b)
+
+    @staticmethod
+    def manhattan_distance(a, b):
+        return ssd.cityblock(a, b)
+
+    @staticmethod
+    def cosine(a, b):
+        return ssd.cosine(a, b)
 
     def _cov_matrix(self, corpus):
         # There's also pd.DataFrame.cov, which calculates the unbiased covariance
@@ -283,10 +398,10 @@ class Delta():
         #results with a redundant matrix and with a flat one, latter seems to be ok.
         #see https://github.com/scipy/scipy/issues/2614  (not sure this is still an issue)
         if stat_linkage_method == "ward":
-            z = sch.linkage(self.results, method='ward', metric='euclidean')
+            z = sch.linkage(self, method='ward', metric='euclidean')
         else:
             #creating a flat representation of the dist matrix
-            deltas_flat = ssd.squareform(self.results)
+            deltas_flat = ssd.squareform(self)
             z = sch.linkage(deltas_flat, method=stat_linkage_method, metric='euclidean')
         return z
 
@@ -298,14 +413,13 @@ class Figure():
     figure_font_size = 0
     figure_title = ""
     stat_mfwords = 0
-    delta_algorithm = {}
+    delta_algorithm = ""
     delta_choice = 0
     save_sep = ""
     figure_show = False
 
-    def __init__(self, z, titles, fig_orientation,
-                 figure_font_size, figure_title, stat_mfwords, delta_algorithm,
-                 delta_choice, save_sep, figure_show):
+    def __init__(self, z, titles, fig_orientation, figure_font_size, figure_title, stat_mfwords,
+                 delta_choice, figure_show):
         """
         creates a dendogram which is displayed and saved to a file
         there is a bug (I think) in the dendrogram method in scipy.cluster.hierarchy (probably)
@@ -318,9 +432,10 @@ class Figure():
         self.figure_font_size = figure_font_size
         self.figure_title = figure_title
         self.stat_mfwords = stat_mfwords
-        self.delta_algorithm = delta_algorithm
         self.delta_choice = delta_choice
-        self.save_sep = save_sep
+        self.delta_algorithm = list(vars(const).keys())[delta_choice]
+
+        self.save_sep = "-"
         self.figure_show = figure_show
 
     def show(self):
@@ -338,23 +453,23 @@ class Figure():
         ax = plt.gca()
         self._color_coding_author_names(ax, self.fig_orientation)
         plt.title(self.figure_title)
-        plt.xlabel(str(self.stat_mfwords) + " most frequent words. " + self.delta_algorithm[self.delta_choice])
+        plt.xlabel(str(self.stat_mfwords) + " most frequent words. " + self.delta_algorithm)
         plt.tight_layout(2)
         if self.figure_show:
+            plt.savefig(self._result_filename(self.figure_title, self.save_sep, self.stat_mfwords) + ".png")
             plt.show()
         return dendro_data, plt
 
     def save(self, plt):
-        plt.savefig(self._result_filename(self.figure_title, self.save_sep, self.stat_mfwords,
-                                          self.delta_algorithm, self.delta_choice) + ".png")
+        plt.savefig(self._result_filename(self.figure_title, self.save_sep, self.stat_mfwords) + ".png")
 
-    def save_results(self, mfw_corpus, deltas, figure_title, save_sep, stat_mfwords, delta_algorithm, delta_choice):
+    def save_results(self, mfw_corpus, deltas, figure_title, save_sep, stat_mfwords, delta_choice):
         """saves results to files
         :param mfw_corpus: the DataFrame shortened to the most frequent words
         :param deltas: a DataFrame containing the Delta distance between the texts
         """
         mfw_corpus.to_csv("mfw_corpus.csv", encoding="utf-8")
-        deltas.to_csv(self._result_filename(figure_title, save_sep, stat_mfwords, delta_algorithm, delta_choice)
+        deltas.to_csv(self._result_filename(figure_title, save_sep, stat_mfwords, delta_choice)
                       + ".results.csv", encoding="utf-8")
 
 
@@ -448,235 +563,194 @@ class Figure():
                                                      save_sep, str(dt.day), save_sep,
                                                      str(dt.hour), save_sep, str(dt.minute))
 
-    def _result_filename(self, figure_title, save_sep, stat_mfwords, delta_algorithm, delta_choice):
+    def _result_filename(self, figure_title, save_sep, stat_mfwords):
         """
         helper method to format the filename for the image which is saved to file
         the name contains the title and some info on the chosen statistics
         """
         return figure_title + save_sep + str(stat_mfwords) \
-               + " mfw. " + delta_algorithm[delta_choice] \
+               + " mfw. " + self.delta_algorithm \
                + save_sep + self._format_time(save_sep)
 
 
-class Config():
-    cfg = None
-
+class Eval():
     def __init__(self):
-        config = profig.Config("pydelta.ini")
-        self.cfg = config
-        self.initialize()
-        self.get_commandline()
+        pass
 
-    def initialize(self):
+    def check_max(s):
+        max_value = 0
+        aname = s.name.split("_")[0]
+        for i in s.index:
+            name = i.split("_")[0]
+            if name == aname:
+                if s[i] > max_value:
+                    max_value = s[i]
+        return max_value
+
+    def classified_correctly(self, s, max_value):
         """
-        writes/reads a default configuration to pydelta.ini. If you want to change these parameters, use the ini file
+        ATT: DON'T USE THIS. checks whether the distance of a given text to texts of other authors is smaller than to
+         texts of the same author
+        :param: s: a pd.Series containing deltas
+        :max_value: the largest distance to a text of the same author
         """
-        self.cfg.init("files.ini", False, comment="if true writes a configuration file to disk")
-        self.cfg.init("files.subdir", "corpus", comment="the subdirectory containing the text files used as input")
-        self.cfg.init("files.refcorpus", "refcorpus", comment="the reference corpus required for some methods")
-        self.cfg.init("files.encoding", "utf-8", comment="the file encoding for the input files")
-        self.cfg.init("files.use_wordlist", False, comment="not implemented yet")
-        self.cfg.init("data.use_corpus", False, comment="use a corpus of word frequencies from file; filename is " +
-                                                        "corpus.csv")
-        self.cfg.init("data.limit", 200000, comment="amount of file to be processed in chars. only useful in " +
-                                                    "combination with set_limit")
-        self.cfg.init("data.set_limit", False, comment="only use a specified amount of the file. NOT TESTED")
-        self.cfg.init("data.lower_case", False, comment="convert all words to lower case")
-        #self.cfg.init("save.fileout", "corpus_words.csv", comment="sets the file name " +
-        #                                                        "to save the corpus words into a file")
-        self.cfg.init("save.complete_corpus", False, comment="save the complete word + freq lists")
-        self.cfg.init("save.save_results", True, comment="the results (i.e. the delta measures) are written " +
-                                                         "into the file results.csv. The mfwords are saved too.")
-        self.cfg.init("save.sep", "-", comment="sperates time and statistic information in the image filename")
-        self.cfg.init("stat.mfwords", 2000, comment="number of most frequent words to use " +
-                                                    "in the calculation of delta. 0 for all words")
-        self.cfg.init("stat.delta_algorithm", ["Classic Delta",  # XXX
-                                               "Argamon's linear Delta",
-                                               "Argamon's quadratic Delta",
-                                               "Argamon's axis-rotated Delta"], comment="available delta algorithms")
-        self.cfg.init("stat.delta_choice", 0, comment="choice of the delta algorithm. 0 = classic, 1 = linear usw.")
-        self.cfg.init("stat.linkage_method", "ward", comment="method how the distance between the newly formed " +
-                                                             "cluster and each candidate is calculated. Valid " +
-                                                             "values: 'ward', 'single', 'average', 'complete',   " +
-                                                             "'weighted'. See documentation on " +
-                                                             "scipy.cluster.hierarchy.linkage for details.")
-        self.cfg.init("stat.evaluate", False, comment="evaluation of the results. Only useful if there are always" +
-                                                      "more than 2 texts by an author and the attribution of all " +
-                                                      "texts is known.")
-        self.cfg.init("figure.title", 'Stylistic analysis using Delta', comment="title is used in the " +
-                                                                                "figure and the name of the " +
-                                                                                "file containing the figure")
-        self.cfg.init("figure.filenames_labels", True, comment="use the filename of the texts as labels")
-        self.cfg.init("figure.fig_orientation", "left", comment="orientation of the figure. allowed values: " +
-                                                                "'left', (author and title at the left side)" +
-                                                                "'top' (author/title at the bottom)")
-        self.cfg.init("figure.font_size", 11, comment="font-size for labels in the figure")
-        self.cfg.init("figure.show", True, comment="show figure interactively if true")
+        #if only one text of an author is in the set, an evaluation of the  clustering makes no sense
+        if max_value == 0:
+            return None
+        aname = s.name.split("_")[0]
+        for i in s.index:
+            name = i.split("_")[0]
+            if name != aname:
+                if s[i] < max_value:
+                    return False
+        return True
 
-        #writes configuration files if it doesn't exist, otherwise reads in values from there
-        self.cfg.sync()
-
-
-    def get_commandline(self):
+    def error_eval(self, l):
         """
-        allows user to override all settings using commandline arguments.
+        trival check of a list of numbers for 'errors'. An error is defined as i - (i-1)  != 1
+        :param: l: a list of numbers representing the position of the author names in the figure labels
+        :rtype: int
         """
-        help_msg = " ".join([str(x) for x in self.cfg])
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-O', dest='options', action='append',
-                            metavar='<key>:<value>', help='Overrides an option in the config file.' +
-                                                          '\navailable options:\n' + help_msg)
-        args = parser.parse_args()
-        # update option values
-        if args.options is not None:
-            self.cfg.update(opt.split(':') for opt in args.options)
+        errors = 0
+        d = None
+        for i in range(len(l)):
+            if d is None:
+                d = 0
+            else:
+                if l[i] - l[i - 1] > 1:
+                    errors += 1
+        return errors
+
+    def evaluate_results(self, fig_data):
+        """
+        evaluates the results on the basis of the dendrogram
+        :param: fig_data: representation of the dendrogram as returned by
+                          scipy.cluster.hierarchy.dendrogram
+        returns total attributions, errors
+        """
+        ivl = fig_data['ivl']
+        authors = {}
+        for i in range(len(ivl)):
+            au = ivl[i].split("_")[0]
+            if au not in authors:
+                authors[au] = [i]
+            else:
+                authors[au].append(i)
+
+        errors = 0
+        for x in authors.keys():
+            errors += self.error_eval(authors[x])
+
+        return len(ivl), errors
+
+    def _purify_delta(self, delta):
+        """
+        Retains only the non-duplicate meaningful deltas.
+
+        I.e. the diagonal and the lower left triangle are set to np.na.
+        """
+        return delta.where(np.triu(np.ones(delta.shape), k=1))
+
+    def delta_values(self, delta):
+        """
+        Converts the given n×n Delta matrix to a nC2 long series of distinct delta
+        values – i.e. duplicates from the lower triangle and zeros from the
+        diagonal are removed.
+        """
+        return self._purify_delta(delta).unstack().dropna()
+
+    def normalize_delta(self, delta):
+        """Normalizes the given delta matrix using the z-Score."""
+        deltas = self.delta_values(delta)
+        return (delta - deltas.mean()) / deltas.std()
+
+    def _author(filename):
+        return filename.partition("_")[0]
+
+    def _partition_deltas(self, deltas, indexfunc=_author):
+        """
+        Partitions the given deltas by same author.
+        """
+        same = pd.DataFrame(index=deltas.index, columns=deltas.index)
+        diff = pd.DataFrame(index=deltas.index, columns=deltas.index)
+        # c'mon. This must go more elegant?
+        for d1, d2 in itertools.combinations(deltas.columns, 2):
+            if indexfunc(d1) == indexfunc(d2):
+                same.at[d1, d2] = deltas.at[d1, d2]
+            else:
+                diff.at[d1, d2] = deltas.at[d1, d2]
+        return (same, diff)
+
+    def evaluate_deltas(self, deltas, verbose=True):
+        """
+        Simple delta quality score for the given delta matrix:
+        The difference between the means of the standardized differences between
+        works of different authors and works of the same author.
+
+        Larger scores = better.
+
+        :param verbose: (default True) also print the score and intermediate
+        results
+        """
+        d_equal, d_different = self._partition_deltas(self.normalize_delta(deltas))
+        equal, different = self.delta_values(d_equal), self.delta_values(d_different)
+        score = different.mean() - equal.mean()
+        if verbose:
+            print("Normalized deltas for same author, mean=%g, std=%g:" %
+                  (equal.mean(), equal.std()))
+            print("Normalized deltas for different author, mean=%g, std=%g:" %
+                  (different.mean(), different.std()))
+            print("### Simple Delta Quality Score = %g" % score)
+        return score
 
 
-def check_max(s):
-    max_value = 0
-    aname = s.name.split("_")[0]
-    for i in s.index:
-        name = i.split("_")[0]
-        if name == aname:
-            if s[i] > max_value:
-                max_value = s[i]
-    return max_value
-
-
-def classified_correctly(s, max_value):
-    """
-    ATT: DON'T USE THIS. checks whether the distance of a given text to texts of other authors is smaller than to
-     texts of the same author
-    :param: s: a pd.Series containing deltas
-    :max_value: the largest distance to a text of the same author
-    """
-    #if only one text of an author is in the set, an evaluation of the  clustering makes no sense
-    if max_value == 0:
-        return None
-    aname = s.name.split("_")[0]
-    for i in s.index:
-        name = i.split("_")[0]
-        if name != aname:
-            if s[i] < max_value:
-                return False
-    return True
-
-
-def error_eval(l):
-    """
-    trival check of a list of numbers for 'errors'. An error is defined as i - (i-1)  != 1
-    :param: l: a list of numbers representing the position of the author names in the figure labels
-    :rtype: int
-    """
-    errors = 0
-    d = None
-    for i in range(len(l)):
-        if d is None:
-            d = 0
-        else:
-            if l[i] - l[i - 1] > 1:
-                errors += 1
-    return errors
-
-
-def evaluate_results(fig_data):
-    """
-    evaluates the results on the basis of the dendrogram
-    :param: fig_data: representation of the dendrogram as returned by
-                      scipy.cluster.hierarchy.dendrogram
-    """
-    ivl = fig_data['ivl']
-    authors = {}
-    for i in range(len(ivl)):
-        au = ivl[i].split("_")[0]
-        if au not in authors:
-            authors[au] = [i]
-        else:
-            authors[au].append(i)
-
-    errors = 0
-    for x in authors.keys():
-        errors += error_eval(authors[x])
-
-    print("attributions - errors: ", len(ivl), " - ", errors)
-
-
-def _purify_delta(delta):
-    """
-    Retains only the non-duplicate meaningful deltas.
-
-    I.e. the diagonal and the lower left triangle are set to np.na.
-    """
-    return delta.where(np.triu(np.ones(delta.shape), k=1))
-
-
-def delta_values(delta):
-    """
-    Converts the given n×n Delta matrix to a nC2 long series of distinct delta
-    values – i.e. duplicates from the lower triangle and zeros from the
-    diagonal are removed.
-    """
-    return _purify_delta(delta).unstack().dropna()
-
-
-def normalize_delta(delta):
-    """Normalizes the given delta matrix using the z-Score."""
-    deltas = delta_values(delta)
-    return (delta - deltas.mean()) / deltas.std()
-
-
-def _author(filename):
-    return filename.partition("_")[0]
-
-
-def _partition_deltas(deltas, indexfunc=_author):
-    """
-    Partitions the given deltas by same author.
-    """
-    same = pd.DataFrame(index=deltas.index, columns=deltas.index)
-    diff = pd.DataFrame(index=deltas.index, columns=deltas.index)
-    # c'mon. This must go more elegant?
-    for d1, d2 in itertools.combinations(deltas.columns, 2):
-        if indexfunc(d1) == indexfunc(d2):
-            same.at[d1, d2] = deltas.at[d1, d2]
-        else:
-            diff.at[d1, d2] = deltas.at[d1, d2]
-    return (same, diff)
-
-
-def evaluate_deltas(deltas, verbose=True):
-    """
-    Simple delta quality score for the given delta matrix:
-    The difference between the means of the standardized differences between
-    works of different authors and works of the same author.
-
-    Larger scores = better.
-
-    :param verbose: (default True) also print the score and intermediate
-    results
-    """
-    d_equal, d_different = _partition_deltas(normalize_delta(deltas))
-    equal, different = delta_values(d_equal), delta_values(d_different)
-    score = different.mean() - equal.mean()
-    if verbose:
-        print("Normalized deltas for same author, mean=%g, std=%g:" %
-              (equal.mean(), equal.std()))
-        print("Normalized deltas for different author, mean=%g, std=%g:" %
-              (different.mean(), different.std()))
-        print("### Simple Delta Quality Score = %g" % score)
-    return score
-
-
-def main():
+def compare_deltas():
     #read configuration
     cfg = Config()
     #uses existing corpus or processes a new set of files
     if cfg.cfg["data.use_corpus"]:
         print("reading corpus from file corpus.csv")
-        corpus = Corpus()
+        corpus = Corpus(file="corpus.csv")
     else:
-        corpus = Corpus(cfg.cfg['files.subdir'], None, cfg.cfg["files.encoding"], cfg.cfg["data.limit"],
-                        cfg.cfg["data.set_limit"], cfg.cfg["data.lower_case"])
+        corpus = Corpus(cfg.cfg['files.subdir'], encoding=cfg.cfg["files.encoding"],
+                        lower_case=cfg.cfg["data.lower_case"])
+        if cfg.cfg["save.complete_corpus"]:
+            corpus.save()
+
+    #creates a smaller table containing just the mfwords
+    mfw_corpus = corpus.get_mfw_table(cfg.cfg['stat.mfwords'])
+
+    eval_results = []
+    #calculates the specified delta
+    for (delta_choice, delta_name) in zip(const, vars(const).keys()):
+        #create reference corpus for Argamon's axis rotated Delta
+        if delta_choice == const.ROTATED_DELTA:
+            refcorpus = Corpus(subdir=cfg.cfg['files.refcorpus'], encoding=cfg.cfg["files.encoding"])
+        else:
+            refcorpus = None
+        #calculate Delta
+        deltas = Delta(mfw_corpus, delta_choice, refcorpus)
+        #setup the figure using the deltas
+        #prints results from evaluation
+        ev = Eval()
+        eval_results.append(ev.evaluate_deltas(deltas, verbose=False))
+
+    print("\n\nResults:")
+    results = zip(vars(const).keys(), eval_results)
+    for name, result in sorted(results, key=lambda x: x[1], reverse=True):
+        print("{name:>20} {result:.4f}".format(name=name.replace("_", " ").title(), result=result))
+
+
+def main():
+    #read configuration
+    cfg = Config(commandline=True)
+    #uses existing corpus or processes a new set of files
+    if cfg.cfg["data.use_corpus"]:
+        print("reading corpus from file corpus.csv")
+        corpus = Corpus(file="corpus.csv")
+    else:
+        corpus = Corpus(cfg.cfg['files.subdir'], encoding=cfg.cfg["files.encoding"],
+                        lower_case=cfg.cfg["data.lower_case"])
         if cfg.cfg["save.complete_corpus"]:
             corpus.save()
 
@@ -693,19 +767,20 @@ def main():
     #calculate Delta
     deltas = Delta(mfw_corpus, delta_choice, refcorpus)
     #setup the figure using the deltas
-    fig = Figure(deltas.get_linkage(cfg.cfg["stat.linkage_method"]), deltas.results.index,
+    fig = Figure(deltas.get_linkage(cfg.cfg["stat.linkage_method"]), deltas.index,
                  cfg.cfg["figure.fig_orientation"], cfg.cfg["figure.font_size"], cfg.cfg["figure.title"],
-                 cfg.cfg["stat.mfwords"], cfg.cfg["stat.delta_algorithm"], cfg.cfg["stat.delta_choice"],
-                 cfg.cfg["save.sep"], cfg.cfg["figure.show"])
+                 cfg.cfg["stat.mfwords"], cfg.cfg["stat.delta_choice"], cfg.cfg["figure.show"])
     #create the figure
     dendro_dat, plot = fig.show()
-    fig.save(plot)
-    #prints results from evaluation
     if cfg.cfg["stat.evaluate"]:
-        evaluate_results(dendro_dat)
-        evaluate_deltas(deltas)
+        ev = Eval()
+        att, err = ev.evaluate_results(dendro_dat)
+        print("\nAlgorithm: ", (list(vars(const).keys())[delta_choice]).replace("_", " ").title())
+        print("Simple eval based on dendrogram (total attributions - errors): ", att, " - ", err)
+        print("Evaluation based on diff of means: ", ev.evaluate_deltas(deltas, verbose=False))
 
 
 if __name__ == '__main__':
-    main()
+    compare_deltas()
+    #main()
 
