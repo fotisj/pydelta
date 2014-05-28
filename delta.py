@@ -423,9 +423,10 @@ class Delta(pd.DataFrame):
             cov = refc.T.cov()
         E_, D_ = self._rotation_matrixes(cov)
         D_inv = linalg.inv(D_)
-        global dropped
         dropped = E_.shape[0] - E_.shape[1]
-        return self._rotated_delta(E_, D_inv, corpus)
+        delta = self._rotated_delta(E_, D_inv, corpus)
+        delta.index.name = str(dropped) ## XXX
+        return delta
 
     def get_linkage(self, stat_linkage_method):
         #create the datamodel which is needed as input for the dendrogram

@@ -34,7 +34,7 @@ def sweep():
             print(quality)
             eval_results.at[wordcount, method] = quality
             if method == "ROTATED_DELTA":
-                eval_results.at[wordcount, DROPPED] = dropped
+                eval_results.at[wordcount, DROPPED] = int(deltas.index.name)
             deltas.to_csv("deltas/{words:04d}.{method}.csv".format(method=method, words=wordcount))
 
     eval_results.to_csv("qualities_corpus3_large_refcorpus_dropped.csv")
