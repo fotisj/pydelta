@@ -12,9 +12,13 @@ def sweep():
 
     wordcounts = list(range(1,25)) + list(range(25,100,5)) + list(range(100,500,10)) + list(range(500,3050,50))
 
-    eval_results = pd.DataFrame(index=wordcounts,columns=list(vars(const).keys()).append(DROPPED))
+    cols = list(vars(const).keys()).append(DROPPED)
+
+    eval_results = pd.DataFrame(index=wordcounts,columns=vars(const).keys())
     eval_results.index.name = 'MFWords'
     ev = Eval()
+
+    print(dropped)
 
     corpus = Corpus('corpus')
     refcorpus = Corpus('refcorpus')
@@ -29,7 +33,8 @@ def sweep():
             quality = ev.evaluate_deltas(deltas, verbose=False)
             print(quality)
             eval_results.at[wordcount, method] = quality
-            eval_results.at[wordcount, DROPPED] = wordcount - deltas.D_.shape[0]
+            if method == "ROTATED_DELTA":
+                eval_results.at[wordcount, DROPPED] = dropped
             deltas.to_csv("deltas/{words:04d}.{method}.csv".format(method=method, words=wordcount))
 
     eval_results.to_csv("qualities_corpus3_large_refcorpus_dropped.csv")

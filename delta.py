@@ -27,6 +27,8 @@ import scipy.spatial.distance as ssd
 import matplotlib.pylab as plt
 import profig
 
+dropped = 0
+
 const = collections.namedtuple('Constants',
                                ["CLASSIC_DELTA", "LINEAR_DELTA", "QUADRATIC_DELTA", "ROTATED_DELTA", "EDERS_DELTA",
                                 "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE"])._make(range(9))
@@ -421,6 +423,8 @@ class Delta(pd.DataFrame):
             cov = refc.T.cov()
         E_, D_ = self._rotation_matrixes(cov)
         D_inv = linalg.inv(D_)
+        global dropped
+        dropped = E_.shape[0] - E_.shape[1]
         return self._rotated_delta(E_, D_inv, corpus)
 
     def get_linkage(self, stat_linkage_method):
