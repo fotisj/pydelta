@@ -2,6 +2,8 @@
 """
 Calculates Burrow's Delta and Argamon's proposed variations.
 
+Can be used both as a module or as a command line program.
+
 tbd:
 
 - add a more solid evaluation for the results.
@@ -9,6 +11,14 @@ tbd:
 - load deltas from file (to check our results against stylo)
 - replace print statements with logging mechanism?
 - redo the saving of results in a more organized manner
+
+Contents:
+
+    - :class:`Config` manages the configuration (via ``pydelta.ini``)
+    - :class:`Corpus` represents a corpus and provides methods for reading, saving and manipulating itself as well as some basic statistics on the corpus.
+    - :class:`Delta` implements the actual difference matrix calculation
+    - :class:`Figure` offers a dendrogram of the clustered documents
+    - :class:`Eval` provides some methods for evaluating both the clustering and the pure delta matrix.
 """
 
 import glob
@@ -50,7 +60,7 @@ class Config():
         file with missing options and documentation, if required.
 
         :param commandline: If ``True``, also parse the command line for option
-        overrides using ``-O <option>:<value>``.
+            overrides using ``-O <option>:<value>``.
         """
         config = profig.Config("pydelta.ini")
         self.cfg = config
@@ -117,17 +127,36 @@ class Config():
 
 class Corpus(pd.DataFrame):
     """
-    Creates a new corpus. Exactly one of ``subdir`` or ``file`` or
-    ``corpus`` should be present to determine the corpus content.
+    A corpus, representing word frequencies.
 
-    :param subdir: Path to a directory with ``*.txt`` files. See process_files
-    :param file: Path to a ``*.csv`` file with the corpus data.
-    :param corpus: Corpus data. Will be passed on to Pandas' DataFrame.
-    :param encoding: Encoding of the files to read for ``subdir``
-    :param lower_case: Whether to normalize all words to lower-case only.
+    A corpus is a :class:`pandas.DataFrame` using words as lines and documents
+    as columns, i.e. the data cell at the position ``corpus.at['and',
+    'Foo.txt']`` contains the frequency (as a float) of the word *and* in the
+    document *Foo.txt*: 
+    
+    ======  ========= ========= =========
+    .       filename1 filename2 filename3
+    ======  ========= ========= =========
+    word      freq      freq      freq
+    word      freq      freq      freq
+    ======  ========= ========= =========
+
+    By default, the word order is undefined and all
+    frequencies in one column add up to 1, however, a sorted and trimmed corpus
+    can be retrieved using :meth:`get_mfw_table`.
     """
 
     def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False):
+        """
+        Creates a new corpus. Exactly one of `subdir` or `file` or
+        `corpus` should be present to determine the corpus content.
+
+        :param subdir: Path to a directory with ``*.txt`` files. See process_files
+        :param file: Path to a ``*.csv`` file with the corpus data.
+        :param corpus: Corpus data. Will be passed on to Pandas' DataFrame.
+        :param encoding: Encoding of the files to read for ``subdir``
+        :param lower_case: Whether to normalize all words to lower-case only.
+        """
         if subdir is not None:
             super().__init__(self.process_files(subdir, encoding, lower_case))
         elif file is not None:
@@ -144,13 +173,6 @@ class Corpus(pd.DataFrame):
         A table of all word and their freq in all texts is created
         format
 
-        ======  ========= ========= =========
-        .       filename1 filename2 filename3
-        ======  ========= ========= =========
-        word      nr        nr
-        word      nr        nr
-        ======  ========= ========= =========
-
         :param config: access to configuration settings
         :param filter: if defined, return only those words that are in the given list
         """
@@ -166,7 +188,7 @@ class Corpus(pd.DataFrame):
     @staticmethod
     def tokenize_file(filename, encoding, lower_case):
         """
-        tokenizes file and returns an unordered pandas.DataFrame
+        tokenizes file and returns an unordered :class:`pandas.DataFrame`
         containing the words and frequencies
         standard encoding = utf-8
         """
@@ -206,7 +228,7 @@ class Corpus(pd.DataFrame):
         frequencies (descending) and shortens the list to the given number of
         most frequent words.
 
-        This returns a new Corpus, the data in this object is not modified.
+        This returns a new :class:`Corpus`, the data in this object is not modified.
 
         :param mfwords: number of most frequent words in the new corpus.
         :returns: a new sorted corpus shortened to `mfwords`
@@ -255,8 +277,8 @@ class Corpus(pd.DataFrame):
         """
         Calculates the standard deviation std for each word of the corpus
         
-        :returns: a pd.Series containing the standard deviations, with the
-           words as index
+        :returns: a :class:`pandas.Series` containing the standard deviations,
+            with the words as index
         """
         return self.std(axis=1)
 
@@ -264,7 +286,7 @@ class Corpus(pd.DataFrame):
         """
         Calculates the median for each word of the corpus
         
-        :returns: a pd.Series containing the medians and the
+        :returns: a :class:`pandas.Series` containing the medians and the
            words as index
         """
         return self.corpus.median(axis=1)
@@ -285,7 +307,7 @@ class Corpus(pd.DataFrame):
         """
         calculate the 'spread' of word distributions assuming they are laplace dist.
 
-        :returns: a pd.Series with the diversity for each word in the corpus
+        :returns: a :class:`pandas.Series` with the diversity for each word in the corpus
         """
         return self.apply(self.diversity, axis=1)
 
@@ -302,8 +324,8 @@ class Delta(pd.DataFrame):
         """
         chooses the algorithm for the calculation of delta
 
-        :param corpus: A Corpus_ to work on
-        :param delta_choice: the *value* of one of the method constants, see const_
+        :param corpus: A :class:`Corpus` to work on
+        :param delta_choice: the *value* of one of the method constants, see const
         :param refcorpus: Reference corpus for those methods that need it
         """
         if delta_choice == const.CLASSIC_DELTA:
@@ -334,14 +356,16 @@ class Delta(pd.DataFrame):
         documents in `corpus`.
         Additional positional and keyword arguments are passed on to `func`.
 
-        :param corpus: The `Corpus` 
+        :param corpus: The :class:`Corpus`
         :param func: a distance function `f(u, v, *args, **kwargs)` that takes
             two vectors (of word frequencies) `u` and `v` and returns a (scalar)
             distance measure.
-        :returns: a square distance matrix (as a `pd.DataFrame`) that contains
-            the differences between each pair of documents from the given corpus.
+        :returns: a square distance matrix (as a :class:`pandas.DataFrame`)
+            that contains the differences between each pair of documents from the
+            given corpus.
 
-        Note that this function assumes $f(u, v) = f(v, u)$ and $f(u, u) = 0$.
+        Note that this function assumes :math:`f(u, v) = f(v, u)` and
+        :math:`f(u, u) = 0`.
         """
         deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
         for i, j in itertools.combinations(corpus.columns, 2):
@@ -414,7 +438,7 @@ class Delta(pd.DataFrame):
         # problematic to use that instead of our own _cov_matrix
         """
         Calculates the covariance matrix S consisting of the covariances 
-        $\sigma_{ij}$ for the words $w_i, w_j$ in the given comparison corpus.
+        :math:`\sigma_{ij}` for the words :math:`w_i, w_j` in the given comparison corpus.
 
         :param corpus: is a words x texts DataFrame representing the reference
         corpus.
@@ -438,7 +462,7 @@ class Delta(pd.DataFrame):
 
     def _rotation_matrixes(self, cov):
         """
-        Calculates the rotation matrixes $E_*$ and $D_*$ for the given
+        Calculates the rotation matrixes :math:`E_*` and :math:`D_*` for the given
         covariance matrix according to Argamon
         """
         ev, E = linalg.eig(cov)
@@ -464,15 +488,19 @@ class Delta(pd.DataFrame):
 
     def rotated_delta(self, corpus, refcorpus, cov_alg='nonbiased'):
         r"""
-        Calculates $\Delta_{Q,\not\perp}^{(n)}$ according to Argamon, i.e.
+        Calculates :math:`\Delta_{Q,\not\perp}^{(n)}` according to Argamon, i.e.
         the axis-rotated quadratic delta using eigenvalue decomposition to
         rotate the feature space according to the word frequency covariance
         matrix calculated from a reference corpus
 
-        :param corpus: Pandas Dataframe (word×documents -> word frequencies) for which to calculate the document deltas
-        :param refcorpus: Pandas Dataframe with the reference corpus
-        :param cov_alg: covariance algorithm choice, ``'argamon'``, ``'nonbiased'`` or a function
-        :returns: a delta matrix
+        :param corpus: :class:`Corpus` or :class:`pandas.DataFrame`
+            (word×documents -> word frequencies) for which to calculate the
+            document deltas 
+        :param refcorpus: :class:`Corpus` or :class:`pandas.DataFrame`
+            with the reference corpus
+        :param cov_alg: covariance algorithm choice, 
+            ``'argamon'``, ``'nonbiased'`` or a function
+        :returns: a delta matrix as :class:pandas.DataFrame
         """
         if refcorpus is None:
             raise Exception("rotated delta requires a reference corpus.")
@@ -709,8 +737,11 @@ class Eval():
 
     def error_eval(self, l):
         """
-        trival check of a list of numbers for 'errors'. An error is defined as i - (i-1)  != 1
-        :param l: a list of numbers representing the position of the author names in the figure labels
+        trival check of a list of numbers for 'errors'. 
+        An error is defined as :math:`i - (i-1)  \\not= 1`
+
+        :param l: a list of numbers representing the position of the author
+            names in the figure labels
         :rtype: int
         """
         errors = 0
@@ -756,7 +787,7 @@ class Eval():
 
     def delta_values(self, delta):
         r"""
-        Converts the given n×n Delta matrix to a $\binom{n}{2}$ long series of
+        Converts the given n×n Delta matrix to a :math:`\binom{n}{2}` long series of
         distinct delta values – i.e. duplicates from the lower triangle and
         zeros from the diagonal are removed.
         """
