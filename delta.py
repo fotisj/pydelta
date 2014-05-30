@@ -16,6 +16,7 @@ import os
 import csv
 import itertools
 from datetime import datetime
+from math import ceil
 import argparse
 
 import pandas as pd
@@ -181,6 +182,37 @@ class Corpus(pd.DataFrame):
             return Corpus(corpus=new_corpus[:mfwords])
         else:
             return Corpus(corpus=new_corpus)
+
+    def cull(self, ratio=None, threshold=None, keepna=False):
+        """
+        Performs culling, i.e. returns a new corpus with all words that do not
+        appear in at least a given ratio or absolute number of documents
+        removed.
+
+        :param float ratio: Minimum ratio of documents a word must occur in to
+            be retained. Note that we're always rounding towards the ceiling,
+            i.e.  if the corpus contains 10 documents and ratio=1/3, a word
+            must occur in at least *4* documents
+        :param int threshold: Minimum number of documents a word must occur in
+            to be retained
+        :param bool keepna: If set to True, the missing words in the returned
+            corpus will be retained as ``nan`` instead of ``0``.
+        :rtype: :class:`Corpus`
+        """
+
+        if ratio is not None:
+            if ratio > 1:
+                threshold = ratio
+            else:
+                threshold = ceil(ratio * self.columns.size)
+        elif threshold is None:
+            return self
+
+        culled = self.replace(0, float('NaN')).dropna(thresh=threshold)
+        if not keepna:
+            culled = culled.fillna(0)
+        return Corpus(corpus=culled)
+
 
     def stds(self):
         """calculates std for all words of the corpus
