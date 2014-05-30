@@ -59,6 +59,7 @@ class Config():
                                                          "into the file results.csv. The mfwords are saved too.")
         self.cfg.init("stat.mfwords", 2000, comment="number of most frequent words to use " +
                                                     "in the calculation of delta. 0 for all words")
+        self.cfg.init("stat.culling", None, type=float, comment="ratio (or absolute number, if > 1) of documents a word must appear in to be retained in the corpus.")
         self.cfg.init("stat.delta_choice", 0, comment="Supported Algorithms: 0. CLASSIC_DELTA, "
                                                       "1. LINEAR_DELTA, 2. QUADRATIC_DELTA, 3. ROTATED_DELTA, 4. EDERS_DELTA, 5. EDERS_SIMPLE_DELTA,"
                                                       "6. EUCLEDIAN, 7. MANHATTAN, 8. COSINE")
@@ -747,6 +748,9 @@ def compare_deltas():
         if cfg.cfg["save.complete_corpus"]:
             corpus.save()
 
+    # culling
+    corpus = corpus.cull(cfg.cfg['stat.culling'])
+
     #creates a smaller table containing just the mfwords
     mfw_corpus = corpus.get_mfw_table(cfg.cfg['stat.mfwords'])
 
@@ -784,6 +788,9 @@ def main():
         if cfg.cfg["save.complete_corpus"]:
             corpus.save()
 
+    # culling
+    corpus = corpus.cull(cfg.cfg['stat.culling'])
+
     #creates a smaller table containing just the mfwords
     mfw_corpus = corpus.get_mfw_table(cfg.cfg['stat.mfwords'])
     mfw_corpus.save()
@@ -811,6 +818,6 @@ def main():
 
 
 if __name__ == '__main__':
-    compare_deltas()
-    #main()
+    #compare_deltas()
+    main()
 
