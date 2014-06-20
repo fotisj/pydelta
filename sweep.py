@@ -20,24 +20,26 @@ def sweep():
 
     print(dropped)
 
-    corpus = Corpus('corpus')
-    refcorpus = Corpus('refcorpus')
+    corpus = Corpus('corpus').cull(1/3)
+    refcorpus = Corpus('refcorpus').cull(1/3)
 
-    for wordcount in wordcounts:
-        print("\n\n# %s words\n" % wordcount)
-        mfw_corpus = corpus.get_mfw_table(wordcount)
-        
-        for method in vars(const).keys():
-            print(method, end=': ')
-            deltas = Delta(mfw_corpus, const.__dict__[method], refcorpus) #XXX?
-            quality = ev.evaluate_deltas(deltas, verbose=False)
-            print(quality)
-            eval_results.at[wordcount, method] = quality
-            if method == "ROTATED_DELTA":
-                eval_results.at[wordcount, DROPPED] = int(deltas.index.name)
-            deltas.to_csv("deltas/{words:04d}.{method}.csv".format(method=method, words=wordcount))
+    try:
 
-    eval_results.to_csv("qualities_corpus3_large_refcorpus_dropped.csv")
+        for wordcount in wordcounts:
+            print("\n\n# %s words\n" % wordcount)
+            mfw_corpus = corpus.get_mfw_table(wordcount)
+            
+            for method in vars(const).keys():
+                print(method, end=': ')
+                deltas = Delta(mfw_corpus, const.__dict__[method], refcorpus) #XXX?
+                quality = ev.evaluate_deltas(deltas, verbose=False)
+                print(quality)
+                eval_results.at[wordcount, method] = quality
+                if method == "ROTATED_DELTA":
+                    eval_results.at[wordcount, DROPPED] = int(deltas.index.name)
+                deltas.to_csv("deltas/{words:04d}.{method}.csv".format(method=method, words=wordcount))
+    finally:
+        eval_results.to_csv("qualities_corpus3_large_refcorpus_dropped.csv")
 
 if __name__ == "__main__":
     sweep()

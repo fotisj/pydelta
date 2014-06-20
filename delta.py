@@ -386,7 +386,7 @@ class Delta(pd.DataFrame):
         D_ = np.diag(ev[select])
         E_ = E[:, select]
         return (E_, D_)
-
+    
     def _rotated_delta(self, E, Dinv, corpus):
         """Performs the actual delta calculation."""
         deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
@@ -421,6 +421,7 @@ class Delta(pd.DataFrame):
             cov = self._cov_matrix(refc)
         elif cov_alg == 'nonbiased':
             cov = refc.T.cov()
+        cov.to_csv("covariances.csv", encoding="utf-8")
         E_, D_ = self._rotation_matrixes(cov)
         D_inv = linalg.inv(D_)
         dropped = E_.shape[0] - E_.shape[1]
