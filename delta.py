@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 """
-calculates Burrow's Delta and Argamon's proposed variations
+Calculates Burrow's Delta and Argamon's proposed variations.
+
+Can be used both as a module or as a command line program.
+
 tbd:
+
 - add a more solid evaluation for the results.
 - rotated_delta: convert the complex results, use abs()?
 - load deltas from file (to check our results against stylo)
 - replace print statements with logging mechanism?
 - redo the saving of results in a more organized manner
+
+Contents:
+
+    - :class:`Config` manages the configuration (via ``pydelta.ini``)
+    - :class:`Corpus` represents a corpus and provides methods for reading, saving and manipulating itself as well as some basic statistics on the corpus.
+    - :class:`Delta` implements the actual difference matrix calculation
+    - :class:`Figure` offers a dendrogram of the clustered documents
+    - :class:`Eval` provides some methods for evaluating both the clustering and the pure delta matrix.
 """
 
 import glob
@@ -33,9 +45,23 @@ const = collections.namedtuple('Constants',
 
 
 class Config():
+    """
+    Represents the file-based configuration for pydelta.
+
+    The configuration will be read from (and written to) a file called
+    ``pydelta.ini`` in the current directory.
+    """
     cfg = None
 
     def __init__(self, commandline=False):
+        """
+        Initializes the options. Tries to read the configuration file,
+        initializes defaults for all options, and updates the configuration
+        file with missing options and documentation, if required.
+
+        :param commandline: If ``True``, also parse the command line for option
+            overrides using ``-O <option>:<value>``.
+        """
         config = profig.Config("pydelta.ini")
         self.cfg = config
         self.initialize()
@@ -44,7 +70,8 @@ class Config():
 
     def initialize(self):
         """
-        writes/reads a default configuration to pydelta.ini. If you want to change these parameters, use the ini file
+        writes/reads a default configuration to pydelta.ini. If you want to
+        change these parameters, use the ini file.
         """
         self.cfg.init("files.ini", False, comment="if true writes a configuration file to disk")
         self.cfg.init("files.subdir", "corpus", comment="the subdirectory containing the text files used as input")
@@ -100,7 +127,37 @@ class Config():
 
 
 class Corpus(pd.DataFrame):
+    """
+    A corpus, representing word frequencies.
+
+    A corpus is a :class:`pandas.DataFrame` using words as lines and documents
+    as columns, i.e. the data cell at the position ``corpus.at['and',
+    'Foo.txt']`` contains the frequency (as a float) of the word *and* in the
+    document *Foo.txt*: 
+    
+    ======  ========= ========= =========
+    .       filename1 filename2 filename3
+    ======  ========= ========= =========
+    word      freq      freq      freq
+    word      freq      freq      freq
+    ======  ========= ========= =========
+
+    By default, the word order is undefined and all
+    frequencies in one column add up to 1, however, a sorted and trimmed corpus
+    can be retrieved using :meth:`get_mfw_table`.
+    """
+
     def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False):
+        """
+        Creates a new corpus. Exactly one of `subdir` or `file` or
+        `corpus` should be present to determine the corpus content.
+
+        :param subdir: Path to a directory with ``*.txt`` files. See process_files
+        :param file: Path to a ``*.csv`` file with the corpus data.
+        :param corpus: Corpus data. Will be passed on to Pandas' DataFrame.
+        :param encoding: Encoding of the files to read for ``subdir``
+        :param lower_case: Whether to normalize all words to lower-case only.
+        """
         if subdir is not None:
             super().__init__(self.process_files(subdir, encoding, lower_case))
         elif file is not None:
@@ -112,15 +169,13 @@ class Corpus(pd.DataFrame):
 
     def process_files(self, subdir, encoding, lower_case):
         """
-        preprocessing all files ending with *.txt in corpus subdir
-        all files are tokenized
-        a table of all word and their freq in all texts is created
+        Preprocessing all files ending with ``*.txt`` in corpus subdir.
+        All files are tokenized.
+        A table of all word and their freq in all texts is created
         format
-                filename1 filename2 filename3
-        word      nr        nr
-        word      nr        nr
-        :param: config: access to configuration settings
-        :param: filter: if defined, return only those words that are in the given list
+
+        :param config: access to configuration settings
+        :param filter: if defined, return only those words that are in the given list
         """
         if not os.path.exists(subdir):
             raise Exception("The directory " + subdir + " doesn't exist. \nPlease add a directory " +
@@ -134,7 +189,7 @@ class Corpus(pd.DataFrame):
     @staticmethod
     def tokenize_file(filename, encoding, lower_case):
         """
-        tokenizes file and returns an unordered pandas.DataFrame
+        tokenizes file and returns an unordered :class:`pandas.DataFrame`
         containing the words and frequencies
         standard encoding = utf-8
         """
@@ -163,17 +218,21 @@ class Corpus(pd.DataFrame):
 
     def save(self):
         """
-        saves corpus to file
+        saves corpus to file named ``corpus_words.csv``
         """
         print("Saving corpus to file corpus_words.csv")
         self.to_csv("corpus_words.csv", encoding="utf-8", na_rep=0, quoting=csv.QUOTE_NONNUMERIC)
 
     def get_mfw_table(self, mfwords):
         """
-        sorts the table containing the frequency lists
-        by the sum of all word freq
-        returns the corpus list shortened to the most frequent words
-        number defined by mfwords
+        Sorts the table containing the frequency lists by the sum of all word
+        frequencies (descending) and shortens the list to the given number of
+        most frequent words.
+
+        This returns a new :class:`Corpus`, the data in this object is not modified.
+
+        :param mfwords: number of most frequent words in the new corpus.
+        :returns: a new sorted corpus shortened to `mfwords`
         """
         #nifty trick to get it sorted according to sum
         #not from me :-)
@@ -216,15 +275,21 @@ class Corpus(pd.DataFrame):
 
 
     def stds(self):
-        """calculates std for all words of the corpus
-           returns a pd.Series containing the means and the
-           words as index"""
+        """
+        Calculates the standard deviation std for each word of the corpus
+        
+        :returns: a :class:`pandas.Series` containing the standard deviations,
+            with the words as index
+        """
         return self.std(axis=1)
 
     def medians(self):
-        """calculates medians for all words of the corpus
-           returns a pd.Series containing the medians and the
-           words as index"""
+        """
+        Calculates the median for each word of the corpus
+        
+        :returns: a :class:`pandas.Series` containing the medians and the
+           words as index
+        """
         return self.corpus.median(axis=1)
 
     @staticmethod
@@ -234,6 +299,7 @@ class Corpus(pd.DataFrame):
         see Argamon's Interpreting Burrow's Delta p. 137 and
         http://en.wikipedia.org/wiki/Laplace_distribution
         couldn't find a ready-made solution in the python libraries
+
         :param values: a pd.Series of values
         """
         return (values - values.median()).abs().sum() / values.size
@@ -241,20 +307,27 @@ class Corpus(pd.DataFrame):
     def diversities(self):
         """
         calculate the 'spread' of word distributions assuming they are laplace dist.
+
+        :returns: a :class:`pandas.Series` with the diversity for each word in the corpus
         """
         return self.apply(self.diversity, axis=1)
 
 
 class Delta(pd.DataFrame):
     """
-    Dataframe which contains the results from a set of different stylometric distance measures.
-    a detailted description of their formulas can be found here
+    Dataframe which contains the results from a set of different stylometric
+    distance measures.
+    a detailed description of their formulas can be found here
     https://sites.google.com/site/computationalstylistics/stylo/stylo_howto.pdf
 
     """
     def __init__(self, corpus, delta_choice, refcorpus=None):
         """
         chooses the algorithm for the calculation of delta
+
+        :param corpus: A :class:`Corpus` to work on
+        :param delta_choice: the *value* of one of the method constants, see const
+        :param refcorpus: Reference corpus for those methods that need it
         """
         if delta_choice == const.CLASSIC_DELTA:
             super().__init__(self.delta_function(corpus, self.classic_delta, corpus.stds(), len(corpus.index)))
@@ -279,6 +352,22 @@ class Delta(pd.DataFrame):
 
     @staticmethod
     def delta_function(corpus, func, *args, **kwargs):
+        """
+        Uses `func` to calculate a difference matrix between each pair of
+        documents in `corpus`.
+        Additional positional and keyword arguments are passed on to `func`.
+
+        :param corpus: The :class:`Corpus`
+        :param func: a distance function `f(u, v, *args, **kwargs)` that takes
+            two vectors (of word frequencies) `u` and `v` and returns a (scalar)
+            distance measure.
+        :returns: a square distance matrix (as a :class:`pandas.DataFrame`)
+            that contains the differences between each pair of documents from the
+            given corpus.
+
+        Note that this function assumes :math:`f(u, v) = f(v, u)` and
+        :math:`f(u, u) = 0`.
+        """
         deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
         for i, j in itertools.combinations(corpus.columns, 2):
             delta = func(corpus[i], corpus[j], *args, **kwargs)
@@ -349,8 +438,8 @@ class Delta(pd.DataFrame):
         # (normalized by n-1), but is much faster. XXX evaluate whether it would be
         # problematic to use that instead of our own _cov_matrix
         """
-        Calculates the covariance matrix S consisting of the covariances $\sigma_{ij
-        }$ for the words $w_i, w_j$ in the given comparison corpus.
+        Calculates the covariance matrix S consisting of the covariances 
+        :math:`\sigma_{ij}` for the words :math:`w_i, w_j` in the given comparison corpus.
 
         :param corpus: is a words x texts DataFrame representing the reference
         corpus.
@@ -374,7 +463,7 @@ class Delta(pd.DataFrame):
 
     def _rotation_matrixes(self, cov):
         """
-        Calculates the rotation matrixes E_* and D_* for the given
+        Calculates the rotation matrixes :math:`E_*` and :math:`D_*` for the given
         covariance matrix according to Argamon
         """
         ev, E = linalg.eig(cov)
@@ -399,16 +488,20 @@ class Delta(pd.DataFrame):
         return deltas.fillna(0)
 
     def rotated_delta(self, corpus, refcorpus, cov_alg='nonbiased'):
-        """
-        Calculates $\Delta_{Q,\not\perp}^{(n)}$ according to Argamon, i.e.
+        r"""
+        Calculates :math:`\Delta_{Q,\not\perp}^{(n)}` according to Argamon, i.e.
         the axis-rotated quadratic delta using eigenvalue decomposition to
         rotate the feature space according to the word frequency covariance
         matrix calculated from a reference corpus
 
-        :param corpus: Pandas Dataframe (word×documents -> word frequencies) for
-                       which to calculate the document deltas
-        :param refcorpus: Pandas Dataframe with the reference corpus
-        :cov_alg: covariance algorithm choice, 'argamon', 'nonbiased' or a function
+        :param corpus: :class:`Corpus` or :class:`pandas.DataFrame`
+            (word×documents -> word frequencies) for which to calculate the
+            document deltas 
+        :param refcorpus: :class:`Corpus` or :class:`pandas.DataFrame`
+            with the reference corpus
+        :param cov_alg: covariance algorithm choice, 
+            ``'argamon'``, ``'nonbiased'`` or a function
+        :returns: a delta matrix as :class:pandas.DataFrame
         """
         if refcorpus is None:
             raise Exception("rotated delta requires a reference corpus.")
@@ -438,6 +531,9 @@ class Delta(pd.DataFrame):
 
 
 class Figure():
+    """
+    A dendrogram figure
+    """
     z = None
     titles = []
     fig_orientation = ""
@@ -605,6 +701,9 @@ class Figure():
 
 
 class Eval():
+    """
+    Evaluation methods
+    """
     def __init__(self):
         pass
 
@@ -620,10 +719,11 @@ class Eval():
 
     def classified_correctly(self, s, max_value):
         """
-        ATT: DON'T USE THIS. checks whether the distance of a given text to texts of other authors is smaller than to
-         texts of the same author
-        :param: s: a pd.Series containing deltas
-        :max_value: the largest distance to a text of the same author
+        ATT: DON'T USE THIS. checks whether the distance of a given text to
+        texts of other authors is smaller than to texts of the same author
+
+        :param s: a pd.Series containing deltas
+        :param max_value: the largest distance to a text of the same author
         """
         #if only one text of an author is in the set, an evaluation of the  clustering makes no sense
         if max_value == 0:
@@ -638,8 +738,11 @@ class Eval():
 
     def error_eval(self, l):
         """
-        trival check of a list of numbers for 'errors'. An error is defined as i - (i-1)  != 1
-        :param: l: a list of numbers representing the position of the author names in the figure labels
+        trival check of a list of numbers for 'errors'. 
+        An error is defined as :math:`i - (i-1)  \\not= 1`
+
+        :param l: a list of numbers representing the position of the author
+            names in the figure labels
         :rtype: int
         """
         errors = 0
@@ -655,9 +758,10 @@ class Eval():
     def evaluate_results(self, fig_data):
         """
         evaluates the results on the basis of the dendrogram
-        :param: fig_data: representation of the dendrogram as returned by
+
+        :param fig_data: representation of the dendrogram as returned by
                           scipy.cluster.hierarchy.dendrogram
-        returns total attributions, errors
+        :returns: total attributions, errors
         """
         ivl = fig_data['ivl']
         authors = {}
@@ -683,19 +787,20 @@ class Eval():
         return delta.where(np.triu(np.ones(delta.shape), k=1))
 
     def delta_values(self, delta):
-        """
-        Converts the given n×n Delta matrix to a nC2 long series of distinct delta
-        values – i.e. duplicates from the lower triangle and zeros from the
-        diagonal are removed.
+        r"""
+        Converts the given n×n Delta matrix to a :math:`\binom{n}{2}` long series of
+        distinct delta values – i.e. duplicates from the lower triangle and
+        zeros from the diagonal are removed.
         """
         return self._purify_delta(delta).unstack().dropna()
 
     def normalize_delta(self, delta):
-        """Normalizes the given delta matrix using the z-Score."""
+        """Standardizes the given delta matrix using its z-Score."""
         deltas = self.delta_values(delta)
         return (delta - deltas.mean()) / deltas.std()
 
     def _author(filename):
+        """Returns the author part of a filename (i.e. before the _)."""
         return filename.partition("_")[0]
 
     def _partition_deltas(self, deltas, indexfunc=_author):
@@ -716,12 +821,14 @@ class Eval():
         """
         Simple delta quality score for the given delta matrix:
         The difference between the means of the standardized differences between
-        works of different authors and works of the same author.
+        works of different authors and works of the same author; i.e. different 
+        authors are considered *score* standard deviations more different than
+        equal authors.
 
-        Larger scores = better.
-
+        :param deltas: The Deltas to evaluate
         :param verbose: (default True) also print the score and intermediate
-        results
+            results
+        :returns: a (hopefully positive :-)) score in standard deviations
         """
         d_equal, d_different = self._partition_deltas(self.normalize_delta(deltas))
         equal, different = self.delta_values(d_equal), self.delta_values(d_different)
