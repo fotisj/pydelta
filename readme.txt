@@ -16,12 +16,13 @@ https://sites.google.com/site/computationalstylistics/
 Installation
 ------------
 
-Install python 3.3 (other versions of 3.x haven't been tested; 3.4 should work.)
-Install dependencies: pandas, scipy, matplotlib, profig (all on pypi).
-Download or checkout pydelta.py
-(you can run ``pip install -r requirements.txt`` to get them all, or in general:
-from python_dir/scripts pip install library_name where library_name is pandas
-etc.)
+1. Install python 3.3 or 3.4 (newer versions of 3.x haven't been tested, older versions don't work)
+2. Install dependencies: pandas, scipy, matplotlib, profig (all on pypi).
+3. Download or checkout pydelta.py
+
+(you can run ``pip install -r requirements.txt`` to get all dependencies, or in
+general: from python_dir/scripts ``pip install library_name`` where
+library_name is pandas etc.)
 
 
 Usage of pydelta:
@@ -29,7 +30,7 @@ Usage of pydelta:
 
 The first time you run the script, use::
 
-    pydelta.py -O files.ini True
+    pydelta.py -O files.ini:True
 
 Thus you create a configuration file (pydelta.ini) which allows you to set most
 parameters of the script without changing the script.
@@ -47,7 +48,7 @@ Start the script with::
 
 on windows (assuming python.exe is in your path)::
 
-    python pydelta.py
+    python delta.py
 
 You can always use commandline parameters to override default settings
 / settings in the pydelta.ini::
