@@ -466,7 +466,7 @@ class Delta(pd.DataFrame):
         Calculates the rotation matrixes :math:`E_*` and :math:`D_*` for the given
         covariance matrix according to Argamon
         """
-        ev, E = linalg.eig(cov)
+        ev, E = linalg.eigh(cov)
 
         # Only use eigenvalues != 0 and the corresponding eigenvectors
         select = np.array(ev, dtype=bool)
@@ -513,7 +513,7 @@ class Delta(pd.DataFrame):
         elif cov_alg == 'nonbiased':
             cov = refc.T.cov()
         E_, D_ = self._rotation_matrixes(cov)
-        D_inv = linalg.inv(D_)
+        D_inv = D_.T
         return self._rotated_delta(E_, D_inv, corpus)
 
     def get_linkage(self, stat_linkage_method):
