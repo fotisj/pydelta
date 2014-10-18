@@ -7,7 +7,6 @@ Can be used both as a module or as a command line program.
 tbd:
 
 - add a more solid evaluation for the results.
-- rotated_delta: convert the complex results, use abs()?
 - load deltas from file (to check our results against stylo)
 - replace print statements with logging mechanism?
 - redo the saving of results in a more organized manner
@@ -41,7 +40,8 @@ import profig
 
 const = collections.namedtuple('Constants',
                                ["CLASSIC_DELTA", "LINEAR_DELTA", "QUADRATIC_DELTA", "ROTATED_DELTA", "EDERS_DELTA",
-                                "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE"])._make(range(9))
+                                "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE", "CANBERRA", "BRAY_CURTIS",
+                                "CHEBYSHEV", "CORRELATION", "MAHALANOBIS", "MAHALANOBIS_SELF"])._make(range(15))
 
 
 class Config():
@@ -336,7 +336,7 @@ class Delta(pd.DataFrame):
         elif delta_choice == const.QUADRATIC_DELTA:
             super().__init__(self.delta_function(corpus, self.quadratic_delta, vars_=corpus.stds() ** 2))
         elif delta_choice == const.ROTATED_DELTA:
-            super().__init__(self.rotated_delta(corpus, refcorpus).abs())
+            super().__init__(self.rotated_delta(corpus, refcorpus))
         elif delta_choice == const.EUCLIDEAN:
             super().__init__(self.delta_function(corpus, self.euclidean_distance))
         elif delta_choice == const.MANHATTAN:
@@ -347,6 +347,18 @@ class Delta(pd.DataFrame):
             super().__init__(self.delta_function(corpus, self.simple_eder))
         elif delta_choice == const.COSINE:
             super().__init__(self.delta_function(corpus, self.cosine))
+        elif delta_choice == const.CANBERRA:
+            super().__init__(self.delta_function(corpus, ssd.canberra))
+        elif delta_choice == const.BRAY_CURTIS: 
+            super().__init__(self.delta_function(corpus, ssd.braycurtis))
+        elif delta_choice == const.CHEBYSHEV:
+            super().__init__(self.delta_function(corpus, ssd.chebyshev))
+        elif delta_choice == const.CORRELATION:
+            super().__init__(self.delta_function(corpus, ssd.correlation))
+        elif delta_choice == const.MAHALANOBIS:
+            super().__init__(self.mahalanobis(corpus, refcorpus))
+        elif delta_choice == const.MAHALANOBIS_SELF:
+            super().__init__(self.mahalanobis(corpus))
         else:
             raise Exception("ERROR: You have to choose an algorithm for Delta.")
 
@@ -515,6 +527,16 @@ class Delta(pd.DataFrame):
         E_, D_ = self._rotation_matrixes(cov)
         D_inv = D_.T
         return self._rotated_delta(E_, D_inv, corpus)
+
+    def mahalanobis(self, corpus, refcorpus=None):
+        """Calculates the mahalanobis distance, using the covariane matrix from the reference corpus."""
+        if refcorpus is None:
+            refc = corpus
+        else:
+            refc = refcorpus.loc[corpus.index].fillna(0)
+        cov = refc.T.cov()
+        iv = linalg.pinv(cov)   # it's probably singular
+        return self.delta_function(corpus, ssd.mahalanobis, iv)        
 
     def get_linkage(self, stat_linkage_method):
         #create the datamodel which is needed as input for the dendrogram
@@ -865,7 +887,7 @@ def compare_deltas():
     #calculates the specified delta
     for (delta_choice, delta_name) in zip(const, vars(const).keys()):
         #create reference corpus for Argamon's axis rotated Delta
-        if delta_choice == const.ROTATED_DELTA:
+        if delta_choice == const.ROTATED_DELTA or delta_choice == const.MAHALANOBIS:
             refcorpus = Corpus(subdir=cfg.cfg['files.refcorpus'], encoding=cfg.cfg["files.encoding"])
         else:
             refcorpus = None
@@ -904,7 +926,7 @@ def main():
     #calculates the specified delta
     delta_choice = cfg.cfg["stat.delta_choice"]
     #create reference corpus for Argamon's axis rotated Delta
-    if delta_choice == 3:
+    if delta_choice == const.ROTATED_DELTA or delta_choice == const.MAHALANOBIS:
         refcorpus = Corpus(subdir=cfg.cfg['files.refcorpus'], encoding=cfg.cfg["files.encoding"])
     else:
         refcorpus = None
