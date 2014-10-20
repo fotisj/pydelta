@@ -855,12 +855,14 @@ class Eval():
         d_equal, d_different = self._partition_deltas(self.normalize_delta(deltas))
         equal, different = self.delta_values(d_equal), self.delta_values(d_different)
         score = different.mean() - equal.mean()
+
         if verbose:
             print("Normalized deltas for same author, mean=%g, std=%g:" %
                   (equal.mean(), equal.std()))
             print("Normalized deltas for different author, mean=%g, std=%g:" %
                   (different.mean(), different.std()))
             print("### Simple Delta Quality Score = %g" % score)
+
         return score
 
 
