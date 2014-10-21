@@ -31,7 +31,8 @@ def unstack(options):
             crosstab = pd.DataFrame.from_csv(os.path.join(options.deltas, filename))
             
             deltas = crosstab.unstack().to_frame() # -> MultiIndex + 1 unlabeled column
-            deltas.columns.names = ["Delta"] # ugh, must be improvable
+            deltas.columns.name = "Delta" # ugh, must be improvable
+            deltas.index.names = [ "File1", "File2" ]
             deltas["Algorithm"] = alg
             deltas["Words"] = words
             deltas["Case Sensitive"] = case_sensitive
