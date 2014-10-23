@@ -41,7 +41,7 @@ import profig
 const = collections.namedtuple('Constants',
                                ["CLASSIC_DELTA", "LINEAR_DELTA", "QUADRATIC_DELTA", "ROTATED_DELTA", "EDERS_DELTA",
                                 "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE", "CANBERRA", "BRAY_CURTIS",
-                                "CHEBYSHEV", "CORRELATION", "MAHALANOBIS", "MAHALANOBIS_SELF"])._make(range(15))
+                                "CHEBYSHEV", "CORRELATION"])._make(range(13))
 
 
 class Config():
@@ -355,10 +355,6 @@ class Delta(pd.DataFrame):
             super().__init__(self.delta_function(corpus, ssd.chebyshev))
         elif delta_choice == const.CORRELATION:
             super().__init__(self.delta_function(corpus, ssd.correlation))
-        elif delta_choice == const.MAHALANOBIS:
-            super().__init__(self.mahalanobis(corpus, refcorpus))
-        elif delta_choice == const.MAHALANOBIS_SELF:
-            super().__init__(self.mahalanobis(corpus))
         else:
             raise Exception("ERROR: You have to choose an algorithm for Delta.")
 
@@ -527,16 +523,6 @@ class Delta(pd.DataFrame):
         E_, D_ = self._rotation_matrixes(cov)
         D_inv = D_.T
         return self._rotated_delta(E_, D_inv, corpus)
-
-    def mahalanobis(self, corpus, refcorpus=None):
-        """Calculates the mahalanobis distance, using the covariane matrix from the reference corpus."""
-        if refcorpus is None:
-            refc = corpus
-        else:
-            refc = refcorpus.loc[corpus.index].fillna(0)
-        cov = refc.T.cov()
-        iv = linalg.pinv(cov)   # it's probably singular
-        return self.delta_function(corpus, ssd.mahalanobis, iv)        
 
     def get_linkage(self, stat_linkage_method):
         #create the datamodel which is needed as input for the dendrogram
@@ -889,7 +875,7 @@ def compare_deltas():
     #calculates the specified delta
     for (delta_choice, delta_name) in zip(const, vars(const).keys()):
         #create reference corpus for Argamon's axis rotated Delta
-        if delta_choice == const.ROTATED_DELTA or delta_choice == const.MAHALANOBIS:
+        if delta_choice == const.ROTATED_DELTA:
             refcorpus = Corpus(subdir=cfg.cfg['files.refcorpus'], encoding=cfg.cfg["files.encoding"])
         else:
             refcorpus = None
@@ -928,7 +914,7 @@ def main():
     #calculates the specified delta
     delta_choice = cfg.cfg["stat.delta_choice"]
     #create reference corpus for Argamon's axis rotated Delta
-    if delta_choice == const.ROTATED_DELTA or delta_choice == const.MAHALANOBIS:
+    if delta_choice == const.ROTATED_DELTA:
         refcorpus = Corpus(subdir=cfg.cfg['files.refcorpus'], encoding=cfg.cfg["files.encoding"])
     else:
         refcorpus = None

@@ -52,7 +52,7 @@ def sweep(corpus_dir='corpus',
             for lc in False, True:
                 print("Preparing", filename(fname, mfw, lc), "... ", end='')
                 c_mfw = corpora[lc].get_mfw_table(mfw)
-                if fno == const.ROTATED_DELTA or fno == const.MAHALANOBIS:
+                if fno == const.ROTATED_DELTA:
                     refc = corpora[lc]
                 else:
                     refc = None
