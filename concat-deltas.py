@@ -8,6 +8,9 @@ Created on Mon Oct 20 17:35:11 2014
 
 # wohl das häßlicste script ever
 
+import matplotlib as mpl
+mpl.use('Agg')
+
 import argparse
 import pandas as pd
 import os
