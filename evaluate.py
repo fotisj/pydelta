@@ -22,9 +22,20 @@ def sweep(corpus_dir='corpus',
           refcorpus_dir=None,
           output='target',
           overwrite=False,
-          mfws = [100, 500, 1000, 1500, 2000, 2500, 3000, 5000]):
+          mfws = [100, 500, 1000, 1500, 2000, 2500, 3000, 5000],
+          words = None):
     """
     """
+    if words is not None:
+        if isinstance(words, list):
+            words = ",".join(words)
+        mfws = [ mfw for sublist in (
+            range(*map(int, part.split(":"))) if ":" in part else [ int(part) ]
+            for part in words.split(","))
+            for mfw in sublist ]
+        
+    print(*mfws)
+    exit(1)
 
     # The score df will be used to store the simple delta scores for each
     # combination as a rough first guide. This will be dumped to a CSV
@@ -48,7 +59,7 @@ def sweep(corpus_dir='corpus',
                Corpus(subdir=corpus_dir, lower_case=True)]
 
     for fname, fno in const.__dict__.items():
-        for mfw in mfws:
+        for mfw in words:
             for lc in False, True:
                 print("Preparing", filename(fname, mfw, lc), "... ", end='')
                 c_mfw = corpora[lc].get_mfw_table(mfw)
@@ -76,8 +87,18 @@ if __name__ == '__main__':
                         help="Target directory for the delta CSVs.")
     parser.add_argument('-f', '--overwrite', action='store_true', default=False,
                         help='Overwrite target directory if neccessary')
+    parser.add_argument('-w', '--words', nargs=1, default='100,500:3001:500,5000',
+                        help="""
+                        Numbers of most frequent words to try. The argument is a comma-separated
+                        list of items. Each item is either an integer number (the number of words
+                        to use) or a range expression in the form min:max:step, meaning take all
+                        numbers from min increasing by step as long as they are lower than max.
+                        """)
+    
     options = parser.parse_args()
     if options.output is None:
         options.output = options.corpus_dir + "_deltas"
+        
+    print(options)
 
     sweep(**options.__dict__)
