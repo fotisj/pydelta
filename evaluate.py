@@ -57,7 +57,7 @@ def sweep(corpus_dir='corpus',
                Corpus(subdir=corpus_dir, lower_case=True)]
 
     for fname, fno in const.__dict__.items():
-        for mfw in words:
+        for mfw in mfws:
             for lc in False, True:
                 print("Preparing", filename(fname, mfw, lc), "... ", end='')
                 c_mfw = corpora[lc].get_mfw_table(mfw)
@@ -97,6 +97,4 @@ if __name__ == '__main__':
     if options.output is None:
         options.output = options.corpus_dir + "_deltas"
         
-    print(options)
-
     sweep(**options.__dict__)
