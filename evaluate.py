@@ -10,6 +10,7 @@ from delta import *
 import os
 import pandas as pd
 import argparse
+from itertools import chain
 
 def filename(fname, mfw, lower_case):
     return "{}.{:04}.{}.csv".format(
@@ -28,15 +29,12 @@ def sweep(corpus_dir='corpus',
     """
     if words is not None:
         if isinstance(words, list):
-            words = ",".join(words)
-        mfws = [ mfw for sublist in (
-            range(*map(int, part.split(":"))) if ":" in part else [ int(part) ]
-            for part in words.split(","))
-            for mfw in sublist ]
+            words = ",".join(words)            
+        mfws = list(chain.from_iterable( 
+                 range(*map(int, part.split(":"))) if ":" in part 
+                 else [int(part)] 
+                 for part in words.split(",")))
         
-    print(*mfws)
-    exit(1)
-
     # The score df will be used to store the simple delta scores for each
     # combination as a rough first guide. This will be dumped to a CSV
     # file after at the end.
