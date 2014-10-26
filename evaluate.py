@@ -23,6 +23,7 @@ def sweep(corpus_dir='corpus',
           refcorpus_dir=None,
           output='target',
           overwrite=False,
+          cont=False,
           mfws = [100, 500, 1000, 1500, 2000, 2500, 3000, 5000],
           words = None):
     """
@@ -34,6 +35,8 @@ def sweep(corpus_dir='corpus',
                  range(*map(int, part.split(":"))) if ":" in part 
                  else [int(part)] 
                  for part in words.split(",")))
+
+    print("MFW counts: ", *mfws)
         
     # The score df will be used to store the simple delta scores for each
     # combination as a rough first guide. This will be dumped to a CSV
@@ -46,7 +49,7 @@ def sweep(corpus_dir='corpus',
     try:
         os.mkdir(output)
     except FileExistsError:
-        if not overwrite:
+        if not (overwrite or cont):
             print("ERROR: Output folder {} already exists. Force overwriting using -f".format(output))
             return
 
@@ -56,20 +59,24 @@ def sweep(corpus_dir='corpus',
     corpora = [Corpus(subdir=corpus_dir),
                Corpus(subdir=corpus_dir, lower_case=True)]
 
-    for fname, fno in const.__dict__.items():
-        for mfw in mfws:
+    for mfw in mfws:
+        for fname, fno in const.__dict__.items():
             for lc in False, True:
-                print("Preparing", filename(fname, mfw, lc), "... ", end='')
-                c_mfw = corpora[lc].get_mfw_table(mfw)
-                if fno == const.ROTATED_DELTA:
-                    refc = corpora[lc]
+                outfn = os.path.join(output, filename(fname, mfw, lc))
+                if (cont and os.path.isfile(outfn)):
+                    print("Skipping {}: it already exists".format(outfn))
                 else:
-                    refc = None
-                delta = Delta(c_mfw, fno, refcorpus=refc)
-                score = evaluate.evaluate_deltas(delta, verbose=False)
-                print(score)
-                scores.loc[fname.title(), mfw, lc] = score
-                delta.to_csv(os.path.join(output, filename(fname, mfw, lc)))
+                    print("Preparing", outfn, "... ", end='')
+                    c_mfw = corpora[lc].get_mfw_table(mfw)
+                    if fno == const.ROTATED_DELTA:
+                        refc = corpora[lc]
+                    else:
+                        refc = None
+                    delta = Delta(c_mfw, fno, refcorpus=refc)
+                    score = evaluate.evaluate_deltas(delta, verbose=False)
+                    print(score)
+                    scores.loc[fname.title(), mfw, lc] = score
+                    delta.to_csv(outfn)
         # dump the scores after every alg at least
         scores.to_csv(output + "_scores.csv")
 
@@ -85,6 +92,8 @@ if __name__ == '__main__':
                         help="Target directory for the delta CSVs.")
     parser.add_argument('-f', '--overwrite', action='store_true', default=False,
                         help='Overwrite target directory if neccessary')
+    parser.add_argument('-c', '--continue', action='store_true', default=False, dest='cont',
+                        help='Skip experiments when the respective output file exists')
     parser.add_argument('-w', '--words', nargs=1, default='100,500:3001:500,5000',
                         help="""
                         Numbers of most frequent words to try. The argument is a comma-separated
