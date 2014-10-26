@@ -22,6 +22,8 @@ args = argparse.ArgumentParser(description="Convert a bunch of delta csvs to one
 args.add_argument("deltas", help="directories containing the delta csv files", nargs='+')
 args.add_argument("-v", "--verbose", help="be verbose", action='store_true')
 args.add_argument("-e", "--evaluate", help="evaluate each delta matrix", action='store_true')
+args.add_argument("-a", "--all", nargs=1, default="", 
+        help="Also concatenate all subcorpora and same them to the given file.")
 options = args.parse_args()
 
 def progress(msg='.', end=''):
@@ -117,10 +119,11 @@ for directory in options.deltas:
         progress("Saving scores for {} ...\n".format(directory))
         scores.to_csv(directory + "-scores.csv")
 
-    if all_deltas is None:
-        all_deltas = deltas
-    else:
-        all_deltas = pd.concat([all_deltas, deltas])
+    if options.all:
+        if all_deltas is None:
+            all_deltas = deltas
+        else:
+            all_deltas = pd.concat([all_deltas, deltas])
 
     if options.evaluate:
         if all_scores is None:
@@ -129,8 +132,11 @@ for directory in options.deltas:
             all_scores = pd.concat([all_scores, scores])
 
 if options.evaluate:
-    progress("Saving all scores to all-scores.csv\n")
+    progress("Saving all scores to all-scores.csv")
     all_scores.to_csv("all-scores.csv")
+    progress("\n")
 
-progress("Saving all deltas to all-deltas.csv\n")
-all_deltas.to_csv("all-deltas.csv")
+if options.all:
+    progress("Saving all deltas to {}".format(options.all))
+    all_deltas.to_csv(options.all)
+    progress("\n")
