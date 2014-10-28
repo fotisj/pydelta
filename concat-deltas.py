@@ -24,6 +24,8 @@ args.add_argument("-v", "--verbose", help="be verbose", action='store_true')
 args.add_argument("-e", "--evaluate", help="evaluate each delta matrix", action='store_true')
 args.add_argument("-a", "--all", nargs=1, default="", 
         help="Also concatenate all subcorpora and same them to the given file.")
+args.add_argument("-p", "--pickle", action="store_true",
+        help="The raw deltas will be pickled instead of stored as csv")
 options = args.parse_args()
 
 def progress(msg='.', end=''):
@@ -112,7 +114,10 @@ all_scores = None
 for directory in options.deltas:
     (deltas, scores) = read_directory(directory)
     progress("Saving deltas for {} ...".format(directory))
-    deltas.to_csv(directory + ".csv")
+    if options.pickle:
+        deltas.to_pickle(directory + ".pickle")
+    else:
+        deltas.to_csv(directory + ".csv")
     progress("\n")
 
     if options.evaluate:
@@ -138,5 +143,8 @@ if options.evaluate:
 
 if options.all:
     progress("Saving all deltas to {}".format(options.all))
-    all_deltas.to_csv(options.all)
+    if options.pickle:
+        all_deltas.to_pickle(options.all)
+    else:
+        all_deltas.to_csv(options.all)
     progress("\n")
