@@ -3,14 +3,26 @@
 
 import pandas as pd
 from ggplot import *
+import argparse
 import os
 
+parser = argparse.ArgumentParser("Plot from a bunch of all-scores.csv files")
+parser.add_argument("scores", default="all-scores.csv", 
+                  help="File containing the scores to plot")
+parser.add_argument("-o", "--output-dir", default="plots",
+                  help="output directory for the plots")
+options = parser.parse_args()
+
+
+print("Plotting scores from", options.scores, "to", options.output_dir)
+
 try:
-         os.mkdir("plots")
+         os.mkdir(options.output_dir)
 except FileExistsError:
+         print("WARNING: Overwriting existing plots")
          pass
 
-scores = pd.DataFrame.from_csv("all-scores.csv")
+scores = pd.DataFrame.from_csv(options.scores)
 algorithms = set(scores["Algorithm"].values)
 
 for algo in algorithms:
@@ -22,7 +34,7 @@ for algo in algorithms:
                    + ylab("Scores") + ylim(0,2.7) \
                    + ggtitle(algo) \
                    + theme_seaborn(context='paper')
-         ggsave(linear, "plots/delta-scores-{}.pdf".format(algo))
+         ggsave(linear, os.path.join(options.output_dir, "delta-scores-{}.pdf".format(algo)))
 
 deltas = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive",
                     color="Corpus"), data=scores) \
@@ -30,7 +42,7 @@ deltas = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive",
          + ylab("Scores") + ylim(0,2.7) \
          + facet_wrap("Algorithm") \
          + theme_seaborn(context='paper')
-ggsave(deltas, "plots/all-delta-scores.pdf", width=29.7, height=20.5, units="cm")
+ggsave(deltas, os.path.join(options.output_dir, "all-delta-scores.pdf"), width=29.7, height=20.5, units="cm")
 
 errors = ggplot(aes(x="Words", y="Clustering_Errors", shape="Case_Sensitive",
                     color="Corpus"), scores) \
@@ -40,4 +52,4 @@ errors = ggplot(aes(x="Words", y="Clustering_Errors", shape="Case_Sensitive",
                                scores["Clustering_Errors"].max() + 1) \
          + facet_wrap("Algorithm") \
          + theme_seaborn(context='paper')
-ggsave(errors, "plots/all-delta-errors.pdf", width=29.7, height=20.5, units="cm")
+ggsave(errors, os.path.join(options.output_dir, "all-delta-errors.pdf"), width=29.7, height=20.5, units="cm")
