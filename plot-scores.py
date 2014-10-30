@@ -30,7 +30,7 @@ for algo in algorithms:
 
          linear = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive", 
                               color="Corpus"), data=algo_scores) \
-                   + geom_point(alpha=.5) \
+                   + geom_point(alpha=.7) \
                    + ylab("Scores") + ylim(0,2.7) \
                    + ggtitle(algo) \
                    + theme_seaborn(context='paper')
@@ -38,7 +38,7 @@ for algo in algorithms:
 
 deltas = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive",
                     color="Corpus"), data=scores) \
-         + geom_point(alpha=.5) \
+         + geom_point(alpha=.7,size=5) \
          + ylab("Scores") + ylim(0,2.7) \
          + facet_wrap("Algorithm") \
          + theme_seaborn(context='paper')
@@ -46,7 +46,7 @@ ggsave(deltas, os.path.join(options.output_dir, "all-delta-scores.pdf"), width=2
 
 errors = ggplot(aes(x="Words", y="Clustering_Errors", shape="Case_Sensitive",
                     color="Corpus"), scores) \
-         + geom_point(alpha=.5) \
+         + geom_point(alpha=.7,size=5) \
          + scale_y_reverse()  + ylab("Errors") + \
                           ylim(scores["Clustering_Errors"].min() - 2,
                                scores["Clustering_Errors"].max() + 1) \
