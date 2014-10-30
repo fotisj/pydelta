@@ -18,6 +18,16 @@ import delta
 import scipy.cluster.hierarchy as sch
 import matplotlib.pyplot as plt
 
+STYLO_ALGS = {
+       "AL": "Linear_Delta",
+       "CB": "Canberra",
+       "CD": "Classic_Delta",
+       "ED": "Eders_Delta",
+       "ES": "Eders_Simple_Delta",
+       "EU": "Euclidean",
+       "MH": "Manhattan"
+}
+
 args = argparse.ArgumentParser(description="Convert a bunch of delta csvs to one file")
 args.add_argument("deltas", help="directories containing the delta csv files", nargs='+')
 args.add_argument("-v", "--verbose", help="be verbose", action='store_true')
@@ -26,6 +36,9 @@ args.add_argument("-a", "--all", nargs=1, default="",
         help="Also concatenate all subcorpora and same them to the given file.")
 args.add_argument("-p", "--pickle", action="store_true",
         help="The raw deltas will be pickled instead of stored as csv")
+args.add_argument("-c", "--case-sensitive", action="store_true", default=False, 
+        help="""When reading stylo written difference tables, assume they are
+                for case-sensitive data. The default is case-insensitive.""")
 options = args.parse_args()
 
 def progress(msg='.', end=''):
@@ -65,9 +78,18 @@ def read_directory(directory, evaluate=True):
     def unstack():    
         for filename in sorted(os.listdir(directory)):
             try:
-                alg, word_s, case_s, _ = filename.split('.')
+                try:
+                    alg, word_s, case_s, _ = filename.split('.')
+                    case_sensitive = case_s == 'case_sensitive'
+                except ValueError:
+                    alg, word_s, _ = filename.split('.')
+                    if alg in STYLO_ALGS:
+                        alg = STYLO_ALGS[alg]
+                        case_sensitive=options.case_sensitive
+                    else:
+                        raise
+
                 words = int(word_s, 10)
-                case_sensitive = case_s == 'case_sensitive'
                 
                 progress("Reading {} ".format(filename))
                 crosstab = pd.DataFrame.from_csv(os.path.join(directory, filename))
