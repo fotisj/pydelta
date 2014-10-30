@@ -25,6 +25,7 @@ def sweep(corpus_dir='corpus',
           overwrite=False,
           cont=False,
           mfws = [100, 500, 1000, 1500, 2000, 2500, 3000, 5000],
+          frequency_table=None,
           words = None):
     """
     """
@@ -37,7 +38,7 @@ def sweep(corpus_dir='corpus',
                  for part in words.split(",")))
 
     print("MFW counts: ", *mfws)
-        
+
     # The score df will be used to store the simple delta scores for each
     # combination as a rough first guide. This will be dumped to a CSV
     # file after at the end.
@@ -55,13 +56,19 @@ def sweep(corpus_dir='corpus',
 
     evaluate = Eval()
 
-    # Prepare the raw corpora
-    corpora = [Corpus(subdir=corpus_dir),
-               Corpus(subdir=corpus_dir, lower_case=True)]
+    if frequency_table is None or len(frequency_table) == 0:
+        # Prepare the raw corpora
+        corpora = [Corpus(subdir=corpus_dir),
+                   Corpus(subdir=corpus_dir, lower_case=True)]
+        cases = (False, True)
+    else:
+        ft = pd.read_table(frequency_table[0], sep=" ", index_col=0).fillna(0) / 100
+        corpora = [None, Corpus(corpus=ft)]
+        cases = (True,)
 
     for mfw in mfws:
         for fname, fno in const.__dict__.items():
-            for lc in False, True:
+            for lc in cases:
                 outfn = os.path.join(output, filename(fname, mfw, lc))
                 if (cont and os.path.isfile(outfn)):
                     print("Skipping {}: it already exists".format(outfn))
@@ -101,6 +108,8 @@ if __name__ == '__main__':
                         to use) or a range expression in the form min:max:step, meaning take all
                         numbers from min increasing by step as long as they are lower than max.
                         """)
+    parser.add_argument('-t', '--frequency-table', nargs=1, action="store",
+            help="File with frequency tables from stylo, ignore corpus_dir")
     
     options = parser.parse_args()
     if options.output is None:
