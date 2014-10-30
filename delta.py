@@ -128,11 +128,11 @@ class Config():
 
 class Corpus(pd.DataFrame):
     """
-    A corpus, representing word frequencies.
+    A corpus, representing word counts.
 
     A corpus is a :class:`pandas.DataFrame` using words as lines and documents
     as columns, i.e. the data cell at the position ``corpus.at['and',
-    'Foo.txt']`` contains the frequency (as a float) of the word *and* in the
+    'Foo.txt']`` contains the number of the word *and* in the
     document *Foo.txt*: 
     
     ======  ========= ========= =========
@@ -147,7 +147,7 @@ class Corpus(pd.DataFrame):
     can be retrieved using :meth:`get_mfw_table`.
     """
 
-    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False, frequencies=True):
+    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False):
         """
         Creates a new corpus. Exactly one of `subdir` or `file` or
         `corpus` should be present to determine the corpus content.
@@ -159,7 +159,7 @@ class Corpus(pd.DataFrame):
         :param lower_case: Whether to normalize all words to lower-case only.
         """
         if subdir is not None:
-            super().__init__(self.process_files(subdir, encoding, lower_case, frequencies))
+            super().__init__(self.process_files(subdir, encoding, lower_case, False))
         elif file is not None:
             super().__init__(pd.read_csv(file, index_col=0))
         elif corpus is not None:
@@ -167,7 +167,7 @@ class Corpus(pd.DataFrame):
         else:
             raise ValueError("Error. Only one of subdir and corpusfile can be not None")
 
-    def process_files(self, subdir, encoding, lower_case, frequencies=True):
+    def process_files(self, subdir, encoding, lower_case, frequencies=False):
         """
         Preprocessing all files ending with ``*.txt`` in corpus subdir.
         All files are tokenized.
@@ -187,7 +187,10 @@ class Corpus(pd.DataFrame):
         list_of_wordlists = []
         for file in filelist:
             list_of_wordlists.append(self.tokenize_file(file, encoding, lower_case, frequencies))
-        return pd.DataFrame(list_of_wordlists).fillna(0).T
+        
+        df = pd.DataFrame(list_of_wordlists).fillna(0).T
+        
+        return df.ix[(-df.sum(axis=1)).argsort()]
 
     @staticmethod
     def tokenize_file(filename, encoding, lower_case, frequencies=True):
@@ -232,23 +235,22 @@ class Corpus(pd.DataFrame):
 
     def get_mfw_table(self, mfwords):
         """
-        Sorts the table containing the frequency lists by the sum of all word
-        frequencies (descending) and shortens the list to the given number of
-        most frequent words.
+        Shortens the list to the given number of most frequent words and converts
+        the word counts to frequencies
 
         This returns a new :class:`Corpus`, the data in this object is not modified.
 
         :param mfwords: number of most frequent words in the new corpus.
         :returns: a new sorted corpus shortened to `mfwords`
-        """
-        #nifty trick to get it sorted according to sum
-        #not from me :-)
-        new_corpus = self.loc[(-self.sum(axis=1)).argsort()]
+        """        
+        new_corpus = self / self.sum() if self.ix[:,1].sum() > 1 else self
         #slice only mfwords from total list
         if mfwords > 0:
-            return Corpus(corpus=new_corpus[:mfwords])
+            return Corpus(corpus = new_corpus[:mfwords])
         else:
-            return Corpus(corpus=new_corpus)
+            return Corpus(corpus = new_corpus)
+        
+        
 
     def cull(self, ratio=None, threshold=None, keepna=False):
         """
