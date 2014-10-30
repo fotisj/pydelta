@@ -21,7 +21,7 @@ Contents:
 """
 
 import glob
-import re
+import regex
 import collections
 import os
 import csv
@@ -194,6 +194,7 @@ class Corpus(pd.DataFrame):
         standard encoding = utf-8
         """
         all_words = collections.defaultdict(int)
+        WORD = regex.compile("\p{L}+")
         set_limit = False  # placeholder for later changes
         limit = 2000  # the same
         #read file, tokenize it, count words
@@ -207,7 +208,7 @@ class Corpus(pd.DataFrame):
                         break
                     else:
                         read_text_length += len(line)
-                words = re.findall("\w+", line)
+                words = WORD.findall(line)
                 for w in words:
                     if lower_case:
                         w = w.lower()
