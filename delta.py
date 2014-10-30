@@ -147,7 +147,7 @@ class Corpus(pd.DataFrame):
     can be retrieved using :meth:`get_mfw_table`.
     """
 
-    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False):
+    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False, frequencies=True):
         """
         Creates a new corpus. Exactly one of `subdir` or `file` or
         `corpus` should be present to determine the corpus content.
@@ -159,7 +159,7 @@ class Corpus(pd.DataFrame):
         :param lower_case: Whether to normalize all words to lower-case only.
         """
         if subdir is not None:
-            super().__init__(self.process_files(subdir, encoding, lower_case))
+            super().__init__(self.process_files(subdir, encoding, lower_case, frequencies))
         elif file is not None:
             super().__init__(pd.read_csv(file, index_col=0))
         elif corpus is not None:
@@ -167,7 +167,7 @@ class Corpus(pd.DataFrame):
         else:
             raise ValueError("Error. Only one of subdir and corpusfile can be not None")
 
-    def process_files(self, subdir, encoding, lower_case):
+    def process_files(self, subdir, encoding, lower_case, frequencies=True):
         """
         Preprocessing all files ending with ``*.txt`` in corpus subdir.
         All files are tokenized.
@@ -176,6 +176,9 @@ class Corpus(pd.DataFrame):
 
         :param config: access to configuration settings
         :param filter: if defined, return only those words that are in the given list
+        :param frequencies: if set to False, the result will contain the number
+            of occurrances of each word instead of the frequency in the text instead.
+
         """
         if not os.path.exists(subdir):
             raise Exception("The directory " + subdir + " doesn't exist. \nPlease add a directory " +
@@ -183,15 +186,18 @@ class Corpus(pd.DataFrame):
         filelist = glob.glob(subdir + os.sep + "*.txt")
         list_of_wordlists = []
         for file in filelist:
-            list_of_wordlists.append(self.tokenize_file(file, encoding, lower_case))
+            list_of_wordlists.append(self.tokenize_file(file, encoding, lower_case, frequencies))
         return pd.DataFrame(list_of_wordlists).fillna(0).T
 
     @staticmethod
-    def tokenize_file(filename, encoding, lower_case):
+    def tokenize_file(filename, encoding, lower_case, frequencies=True):
         """
         tokenizes file and returns an unordered :class:`pandas.DataFrame`
         containing the words and frequencies
         standard encoding = utf-8
+        
+        If frequencies is set to ``False``, the result will contain the number
+        of occurrances of each word instead of the frequency in the text instead.
         """
         all_words = collections.defaultdict(int)
         WORD = regex.compile("\p{L}+")
@@ -215,7 +221,7 @@ class Corpus(pd.DataFrame):
                     all_words[w] += 1
         filename = os.path.basename(filename)
         wordlist = pd.Series(all_words, name=filename)
-        return wordlist / wordlist.sum()
+        return wordlist / wordlist.sum() if frequencies else wordlist
 
     def save(self):
         """
