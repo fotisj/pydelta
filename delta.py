@@ -41,7 +41,7 @@ import profig
 const = collections.namedtuple('Constants',
                                ["CLASSIC_DELTA", "LINEAR_DELTA", "QUADRATIC_DELTA", "ROTATED_DELTA", "EDERS_DELTA",
                                 "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE", "CANBERRA", "BRAY_CURTIS",
-                                "CHEBYSHEV", "CORRELATION"])._make(range(13))
+                                "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "PIELSTROEM_P1"])._make(range(15))
 
 
 class Config():
@@ -364,6 +364,10 @@ class Delta(pd.DataFrame):
             super().__init__(self.delta_function(corpus, ssd.chebyshev))
         elif delta_choice == const.CORRELATION:
             super().__init__(self.delta_function(corpus, ssd.correlation))
+        elif delta_choice == const.HOOVER_P1:
+            super().__init__(self.hoover_p1(corpus))
+        elif delta_choice == const.PIELSTROEM_P1:
+            super().__init__(self.pielstroem_p1(corpus))
         else:
             raise Exception("ERROR: You have to choose an algorithm for Delta.")
 
@@ -391,6 +395,44 @@ class Delta(pd.DataFrame):
             deltas.at[i, j] = delta
             deltas.at[j, i] = delta
         return deltas.fillna(0)
+        
+    @staticmethod
+    def hoover_p1(corpus):
+        """
+        Implements the _Delta-P1_ measure from Hoover's "Delta Prime?" (2004).
+        Note that this, unlike all the other distance measures, is
+        _asymmetric_, i.e. it will contain different versions in the upper and
+        lower triangle of the matrix.
+        """
+        z_scores = corpus.apply(lambda f: (f - corpus.mean(axis=1)) / corpus.std(axis=1))
+        deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
+        for a, b in itertools.product(deltas.index, deltas.columns):
+            if a != b:
+                zdiff = z_scores[a] - z_scores[b]
+                zdpos = zdiff[zdiff >= 0]
+                zdneg = zdiff[zdiff < 0]
+                deltas.at[a, b] = (zdpos.mean() + 1)**2 - zdneg.mean()
+        return deltas.fillna(0)
+            
+    @staticmethod
+    def pielstroem_p1(corpus):
+        """
+        A variation of Hoover's Delta-P1 that is symmetric.
+        """
+        z_scores = corpus.apply(lambda f: (f - corpus.mean(axis=1)) / corpus.std(axis=1))
+        deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
+        for a, b in itertools.combinations(deltas.index, 2):
+            zdiff = z_scores[a] - z_scores[b]
+            zdpos = zdiff[zdiff >= 0]
+            zdneg = zdiff[zdiff < 0]
+            if zdpos.sum() < -zdneg.sum():
+                zdpos, zdneg = -zdneg, -zdpos
+            d = (zdpos.mean() + 1)**2 - zdneg.mean()
+            deltas.at[a, b] = d
+            deltas.at[b, a] = d
+        return deltas.fillna(0)
+
+        
 
     @staticmethod
     def classic_delta(a, b, stds, n):
@@ -398,6 +440,7 @@ class Delta(pd.DataFrame):
         Burrow's Classic Delta
         """
         return ((a - b).abs() / stds).sum() / n
+                
 
     @staticmethod
     def quadratic_delta(a, b, vars_):
