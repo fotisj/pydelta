@@ -41,7 +41,7 @@ import profig
 const = collections.namedtuple('Constants',
                                ["CLASSIC_DELTA", "LINEAR_DELTA", "QUADRATIC_DELTA", "ROTATED_DELTA", "EDERS_DELTA",
                                 "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE", "CANBERRA", "BRAY_CURTIS",
-                                "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "PIELSTROEM_P1"])._make(range(15))
+                                "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "COSINE_DELTA"])._make(range(15))
 
 
 class Config():
@@ -340,6 +340,8 @@ class Delta(pd.DataFrame):
         """
         if delta_choice == const.CLASSIC_DELTA:
             super().__init__(self.delta_function(corpus, self.classic_delta, corpus.stds(), len(corpus.index)))
+        elif delta_choice == const.COSINE_DELTA:
+            super().__init__(self.cosine_delta(corpus))
         elif delta_choice == const.LINEAR_DELTA:
             super().__init__(self.delta_function(corpus, self.linear_delta, diversities=corpus.diversities()))
         elif delta_choice == const.QUADRATIC_DELTA:
@@ -432,7 +434,15 @@ class Delta(pd.DataFrame):
             deltas.at[b, a] = d
         return deltas.fillna(0)
 
-        
+    @staticmethod
+    def cosine_delta(corpus):
+        z_scores = corpus.apply(lambda f: (f - corpus.mean(axis=1)) / corpus.std(axis=1))
+        deltas = pd.DataFrame(index=corpus.columns, columns=corpus.columns)
+        for a, b in itertools.combinations(deltas.index, 2):
+            d = ssd.cosine(z_scores[a], z_scores[b])
+            deltas.at[a, b] = d
+            deltas.at[b, a] = d
+        return deltas.fillna(0)
 
     @staticmethod
     def classic_delta(a, b, stds, n):
@@ -440,7 +450,7 @@ class Delta(pd.DataFrame):
         Burrow's Classic Delta
         """
         return ((a - b).abs() / stds).sum() / n
-                
+
 
     @staticmethod
     def quadratic_delta(a, b, vars_):
