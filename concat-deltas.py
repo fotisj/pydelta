@@ -39,6 +39,8 @@ args.add_argument("-p", "--pickle", action="store_true",
 args.add_argument("-c", "--case-sensitive", action="store_true", default=False, 
         help="""When reading stylo written difference tables, assume they are
                 for case-sensitive data. The default is case-insensitive.""")
+args.add_argument("-d", "--dendrograms", nargs=1,
+        help="Generate dendrograms and store them in the given directory.")
 options = args.parse_args()
 
 def progress(msg='.', end=''):
@@ -57,6 +59,52 @@ def corpus_name(dirname):
     else:
         return dirname
 
+def cluster_errors_2(delta, z=None):
+    if z is None:
+        z = sch.ward(delta)
+
+    clusters = pd.DataFrame(index=delta.index)
+    clusters["Author"] = [ s.split("_")[0] for s in clusters.index ]
+    def nauthors(df):
+        return len(set(df.Author))
+    author_count = nauthors(clusters)
+    clusters["Cluster"] = sch.fcluster(z, author_count, criterion='maxclust')
+    return int((clusters.groupby("Cluster").agg(nauthors)-1).sum())
+
+
+def _color_coding_author_names(ax, fig_orientation):
+    """color codes author names
+    :param ax: a matplotlib axis as created by the dendogram method
+    """
+    lbls = []
+    #get the labels from axis
+    if fig_orientation == "left":
+        lbls = ax.get_ymajorticklabels()
+    elif fig_orientation == "top":
+        lbls = ax.get_xmajorticklabels()
+    colors = ["r", "g", "b", "m", "k", "Olive", "SaddleBrown", "CadetBlue", "DarkGreen", "Brown"]
+    cnt = 0
+    authors = {}
+    new_labels = []
+    for lbl in lbls:
+        author, title = lbl.get_text().split("_")
+        if author in authors:
+            lbl.set_color(authors[author])
+        else:
+            color = colors[cnt]
+            authors[author] = color
+            lbl.set_color(color)
+            cnt += 1
+            if cnt == 9:
+                cnt = 0
+        lbl.set_text(author + " " + title)
+        new_labels.append(author + " " + title)
+    if fig_orientation == "left":
+        ax.set_yticklabels(new_labels)
+    elif fig_orientation == "top":
+        ax.set_xticklabels(new_labels)
+
+
 def read_directory(directory, evaluate=True):
     """
     Reads the delta crosstables in the given directory into one big dataframe.
@@ -69,13 +117,15 @@ def read_directory(directory, evaluate=True):
 
     ev = delta.Eval()
     scores = pd.DataFrame(columns=["Algorithm", "Words", "Case_Sensitive", "Corpus",
-        "Simple_Delta_Score", "Clustering_Errors"])
+        "Simple_Delta_Score", "Clustering_Errors", "Errors2"])
     scores.index.name = 'deltafile'
     corpus = corpus_name(directory)
 
     progress("\nProcessing directory {} (= corpus {})\n".format(directory, corpus))
 
+
     def unstack():    
+        colors = ["r", "g", "b", "m", "k", "Olive", "SaddleBrown", "CadetBlue", "DarkGreen", "Brown"]
         for filename in sorted(os.listdir(directory)):
             try:
                 try:
@@ -87,6 +137,7 @@ def read_directory(directory, evaluate=True):
                         alg = STYLO_ALGS[alg]
                         case_sensitive=options.case_sensitive
                     else:
+                        print("{} does not match, and {} is not one of the stylo distances".format(filename, alg))
                         raise
 
                 words = int(word_s, 10)
@@ -100,10 +151,26 @@ def read_directory(directory, evaluate=True):
                     progress()
                     linkage = sch.ward(crosstab)
                     plt.clf()
-                    dendrogram = sch.dendrogram(linkage, labels=crosstab.index)
+                    fig = plt.gcf()
+                    fig.set_size_inches(8.07,11.69)
+                    fig.set_dpi(600)
+                    dendrogram = sch.dendrogram(linkage, labels=[fn[:-4] for fn in crosstab.index],
+                            leaf_font_size=8, link_color_func=lambda k: 'k', orientation="left")
                     progress()
                     total, errors = ev.evaluate_results(dendrogram)
-                    scores.loc[filename] = (alg, words, case_sensitive, corpus, simple_score, errors)                
+                    errors2 = cluster_errors_2(crosstab, linkage)
+                    if options.dendrograms:
+                        plt.title("{} {} CS: {} mfw {}".format(corpus, alg, case_sensitive, words))
+                        plt.xlabel("Errors {}, Score {}".format(errors, simple_score))
+                        ax = plt.gca()
+                        _color_coding_author_names(ax, "left")
+                        plt.tight_layout()
+                        plt.savefig(os.path.join(options.dendrograms[0], 
+                            corpus + "." + filename[:-3] + "pdf"), 
+                            dpi=600,
+                            orientation="portrait", papertype="a4", 
+                            format="pdf") 
+                    scores.loc[filename] = (alg, words, case_sensitive, corpus, simple_score, errors, errors2)
                     progress()
                 else:
                     progress("...")
@@ -123,8 +190,8 @@ def read_directory(directory, evaluate=True):
                 deltas["Title2"] = deltas.index.to_series().map(lambda t: t[1].split('_')[1][:-4]) 
                 progress("\n")
                 yield deltas
-            except ValueError:
-                print("WARNING: Skipping non-matching filename {}".format(filename))
+            except ValueError(e):
+                print("WARNING: Skipping non-matching filename {}".format(filename),e)
 
     corpus_deltas = pd.concat(unstack())
     return (corpus_deltas, scores)
