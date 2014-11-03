@@ -31,15 +31,24 @@ for algo in algorithms:
          linear = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive", 
                               color="Corpus"), data=algo_scores) \
                    + geom_point(alpha=.7) \
-                   + ylab("Scores") + ylim(0,2.7) \
+                   + ylab("Scores") + ylim(0,4.0) \
                    + ggtitle(algo) \
                    + theme_seaborn(context='paper')
          ggsave(linear, os.path.join(options.output_dir, "delta-scores-{}.pdf".format(algo)))
 
+         err = ggplot(aes(x="Words", y="Clustering_Errors", shape="Case_Sensitive",
+                    color="Corpus"), algo_scores) \
+                  + geom_point(alpha=.7) \
+                  + scale_y_reverse()  + ylab("Errors") + \
+                                   ylim(scores["Clustering_Errors"].min() - 2,
+                                        scores["Clustering_Errors"].max() + 1) \
+                  + theme_seaborn(context='paper')
+         ggsave(err, os.path.join(options.output_dir, "delta-errors-{}.pdf".format(algo)))
+
 deltas = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive",
                     color="Corpus"), data=scores) \
          + geom_point(alpha=.7,size=5) \
-         + ylab("Scores") + ylim(0,2.7) \
+         + ylab("Scores") + ylim(0,4.0) \
          + facet_wrap("Algorithm") \
          + theme_seaborn(context='paper')
 ggsave(deltas, os.path.join(options.output_dir, "all-delta-scores.pdf"), width=29.7, height=20.5, units="cm")
