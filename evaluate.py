@@ -66,6 +66,10 @@ def sweep(corpus_dir='corpus',
         corpora = [None, Corpus(corpus=ft)]
         cases = (True,)
 
+    if refcorpus_dir is not None:
+        refcorpora = [Corpus(subdir=refcorpus_dir).get_mfw_table(0),
+                      Corpus(subdir=refcorpus_dir, lower_case=True).get_mfw_table(0)]
+
     for mfw in mfws:
         for fname, fno in const.__dict__.items():
             for lc in cases:
@@ -76,7 +80,10 @@ def sweep(corpus_dir='corpus',
                     print("Preparing", outfn, "... ", end='')
                     c_mfw = corpora[lc].get_mfw_table(mfw)
                     if fno == const.ROTATED_DELTA:
-                        refc = corpora[lc]
+                        if refcorpus_dir is None:
+                            refc = corpora[lc]
+                        else:
+                            refc = refcorpora[lc]
                     else:
                         refc = None
                     delta = Delta(c_mfw, fno, refcorpus=refc)
