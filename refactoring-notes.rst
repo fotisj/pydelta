@@ -5,6 +5,11 @@ Corpus
 ------
 
 - Corpus inherits from DataFrame, which overrides the attribute subscription, which makes it hard to introduce attributes, which makes passing in options really really clumsy
+  - from the discussions on gh etc., there are two basic problems:
+    - nearly all operations on DFs return a new DF and these do not copy additional attributes or metadata,
+    - using the df constructor is hardcoded in many places, so operations on our class will
+      return just a plain DF and not an instance of our class.
+  - there are some attempts to resolve that problem, e.g., by composition
 - Tokenizing and calculating the frequency table is not really separated, making it hard to both use the tokenizer separately and replacing the tokenizer
 - Old implementation lost the absolute word count. The new implementation however may contain either word counts or word frequencies, and it uses an heuristic to find out what it does. Additionally, while it is sorted after _tokenizing_ it is now not clear whether it is sorted after loading a corpus from a file.
 - For some deltas it would be useful to access a z-scored version of the frequencies
