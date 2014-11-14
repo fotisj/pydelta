@@ -147,7 +147,7 @@ class Corpus(pd.DataFrame):
     can be retrieved using :meth:`get_mfw_table`.
     """
 
-    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False):
+    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False, metadata=None, **kwargs):
         """
         Creates a new corpus. Exactly one of `subdir` or `file` or
         `corpus` should be present to determine the corpus content.
@@ -157,15 +157,35 @@ class Corpus(pd.DataFrame):
         :param corpus: Corpus data. Will be passed on to Pandas' DataFrame.
         :param encoding: Encoding of the files to read for ``subdir``
         :param lower_case: Whether to normalize all words to lower-case only.
+        :param metadata: If present, this will initialize this object's metadata from the argument. Use this if the corpus you pass in is a plain dataframe.
+
+        Additional keyword arguments will be stored as metadata.
         """
+        if metadata is None:
+            metadata = dict(
+                lower_case=False,
+                ordered=False,
+                words=None,
+                corpus=subdir if subdir else file,
+                frequencies=False)
+        else:
+            metadata = dict(metadata) # copy it, just in ccase
+        metadata.update(kwargs)
         if subdir is not None:
             super().__init__(self.process_files(subdir, encoding, lower_case, False))
+            metadata['ordered'] = True
         elif file is not None:
             super().__init__(pd.read_csv(file, index_col=0))
+            # TODO metadata handling. Sidecar files?
+            # TODO can we probably use hdf5?
         elif corpus is not None:
             super().__init__(corpus)
+            if isinstance(corpus, Corpus):
+                metadata = corpus.metadata
         else:
             raise ValueError("Error. Only one of subdir and corpusfile can be not None")
+        self.metadata = metadata
+
 
     def process_files(self, subdir, encoding, lower_case, frequencies=False):
         """
@@ -192,6 +212,9 @@ class Corpus(pd.DataFrame):
         
         return df.ix[(-df.sum(axis=1)).argsort()]
 
+
+    # XXX split into reading the file, tokenizing, transformations, and
+    # building the frequency table to implement additional post-processing
     @staticmethod
     def tokenize_file(filename, encoding, lower_case, frequencies=True):
         """
@@ -232,6 +255,8 @@ class Corpus(pd.DataFrame):
         """
         print("Saving corpus to file corpus_words.csv")
         self.to_csv("corpus_words.csv", encoding="utf-8", na_rep=0, quoting=csv.QUOTE_NONNUMERIC)
+        # TODO metadata handling
+        # TODO different formats? compression?
 
     def get_mfw_table(self, mfwords):
         """
@@ -246,9 +271,9 @@ class Corpus(pd.DataFrame):
         new_corpus = self / self.sum() if self.ix[:,1].sum() > 1 else self
         #slice only mfwords from total list
         if mfwords > 0:
-            return Corpus(corpus = new_corpus[:mfwords])
+            return Corpus(corpus = new_corpus[:mfwords], metadata=self.metadata, words=mfwords, frequencies=True)
         else:
-            return Corpus(corpus = new_corpus)
+            return Corpus(corpus = new_corpus, metadata = self.metadata, frequencies=True)
         
         
 
@@ -280,7 +305,24 @@ class Corpus(pd.DataFrame):
         culled = self.replace(0, float('NaN')).dropna(thresh=threshold)
         if not keepna:
             culled = culled.fillna(0)
-        return Corpus(corpus=culled)
+        return Corpus(corpus=culled, metadata=self.metadata, culling=threshold)
+
+    def z_scores(self):
+        """
+        Returns a new corpus containing the z-scores of this corpus.
+        """
+        z_scores = self.apply(lambda f: (f - self.mean(axis=1)) / self.std(axis=1))
+        return Corpus(corpus=z_scores, metadata=self.metadata, z_scores=True)
+
+    def eder_std(self):
+        """
+        Returns a copy of this corpus that is normalized using Eder's normalization.
+        This multiplies each entry with :math:`\frac{n-n_i+1}{n}` 
+        """
+        n = self.index.size
+        ed = pd.Series(range(n, 0, -1), index=self.index) / n
+        df = self.apply(lambda f: f*ed)
+        return Corpus(corpus=df, metadata=self.metadata, eder=True)
 
 
     def stds(self):
