@@ -41,7 +41,7 @@ import profig
 const = collections.namedtuple('Constants',
                                ["CLASSIC_DELTA", "LINEAR_DELTA", "QUADRATIC_DELTA", "ROTATED_DELTA", "EDERS_DELTA",
                                 "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE", "CANBERRA", "BRAY_CURTIS",
-                                "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "COSINE_DELTA"])._make(range(15))
+                                "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "COSINE_DELTA", "COSINE_EDER", "COSINE_BINARY"])._make(range(17))
 
 
 class Config():
@@ -395,6 +395,10 @@ class Delta(pd.DataFrame):
             super().__init__(self.delta_function(corpus, self.classic_delta, corpus.stds(), len(corpus.index)))
         elif delta_choice == const.COSINE_DELTA:
             super().__init__(self.cosine_delta(corpus))
+        elif delta_choice == const.COSINE_EDER:
+            super().__init__(self.delta_function(corpus.z_scores().eder_std(), ssd.cosine))
+        elif delta_choice == const.COSINE_BINARY:
+            super().__init__(self.delta_function(corpus.binarize(), ssd.cosine))
         elif delta_choice == const.LINEAR_DELTA:
             super().__init__(self.delta_function(corpus, self.linear_delta, diversities=corpus.diversities()))
         elif delta_choice == const.QUADRATIC_DELTA:
