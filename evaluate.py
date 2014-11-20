@@ -71,7 +71,7 @@ def sweep(corpus_dir='corpus',
                       Corpus(subdir=refcorpus_dir, lower_case=True).get_mfw_table(0)]
 
     for mfw in mfws:
-        for fname, fno in [("COSINE_EDER", const.COSINE_EDER), ("COSINE_BINARY", const.COSINE_BINARY)]: ##const.__dict__.items():
+        for fname, fno in const.__dict__.items():
             for lc in cases:
                 outfn = os.path.join(output, filename(fname, mfw, lc))
                 if (cont and os.path.isfile(outfn)):
