@@ -324,6 +324,17 @@ class Corpus(pd.DataFrame):
         df = self.apply(lambda f: f*ed)
         return Corpus(corpus=df, metadata=self.metadata, eder=True)
 
+    def binarize(self):
+        """
+        Returns a copy of this corpus in which the word frequencies are
+        normalized to be either 0 (word is not present in the document) or 1.
+        """
+        df = self.copy()
+        df[df > 0] = 1
+        metadata = self.metadata
+        del metadata["frequencies"]
+        metadata["binarized"] = True
+        return Corpus(corpus=df, metadata=metadata)
 
     def stds(self):
         """
