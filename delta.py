@@ -464,7 +464,19 @@ class Delta(pd.DataFrame):
             deltas.at[i, j] = delta
             deltas.at[j, i] = delta
         return deltas.fillna(0)
-        
+
+    @staticmethod
+    def wrap_pdist(corpus, method, *args, **kwargs):
+        """
+        Wrapper around pdist that returns the same form as :method:`delta_function`.
+
+        :param corpus: the :class:`Corpus`
+        :param method: method argument to :function:`ssd.pdist`
+        """
+        y = ssd.pdist(corpus.T, method, *args, **kwargs)
+        return pd.DataFrame(ssd.squareform(y), 
+                index=corpus.columns, columns=corpus.colums)
+
     @staticmethod
     def hoover_p1(corpus):
         """
