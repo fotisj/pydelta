@@ -1,5 +1,5 @@
-Pydelta v 0.1
-=============
+Pydelta
+=======
 
 pydelta is a commandline tool which implements 3 algorithms in the form 
 described by Argamon in a paper on John Burrows Delta.

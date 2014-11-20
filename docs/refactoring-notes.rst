@@ -33,6 +33,8 @@ Evaluate
 --------
 
 - re-implement the cluster errors with the helper functions from scipy.cluster.hierarchy instead of the dendrogram
+- How homogeneous is a corpus?
+  - extract in-group and out-group from cor
 
 
 Figure
