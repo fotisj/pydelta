@@ -236,7 +236,7 @@ class Corpus(pd.DataFrame):
         """
         #nifty trick to get it sorted according to sum
         #not from me :-)
-        new_corpus = self.loc[(-self.sum(axis=1)).argsort()]
+        new_corpus = self.iloc[(-self.sum(axis=1)).argsort()]
         #slice only mfwords from total list
         if mfwords > 0:
             return Corpus(corpus=new_corpus[:mfwords])
