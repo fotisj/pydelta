@@ -11,3 +11,4 @@ __title__ = 'delta'
 __version__ = '0.2.0'
 __author__ = 'Fotis Jannidis, Thorsten Vitt'
 
+from .corpus import Corpus, FeatureGenerator
