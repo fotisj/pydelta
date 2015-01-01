@@ -39,7 +39,7 @@ class Metadata(object):
         for arg in args:
             if isinstance(arg, Metadata):
                 self.__dict__.update(arg.__dict__)
-            elif "metadata" in arg and isinstance(arg.metadata, Metadata):
+            elif "metadata" in dir(arg) and isinstance(arg.metadata, Metadata):
                 self.__dict__.update(arg.metadata.__dict__)
             elif isinstance(arg, str):
                 self.__dict__.update(json.loads(arg))

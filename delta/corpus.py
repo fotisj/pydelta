@@ -10,7 +10,9 @@ import glob
 import regex as re
 import pandas as pd
 import collections
+import csv
 from math import ceil
+from .util import Metadata
 
 
 class FeatureGenerator(object):
@@ -25,7 +27,7 @@ class FeatureGenerator(object):
     On a feature generator passed in to :class:`Corpus`, only two methods will be called:
 
         * :meth:`__call__`, i.e. the object as a callable, to actually generate the feature vector,
-        * :meth:`get_metadata` to obtain metadata fields that will be included in the corresponding corpus. 
+        * :attr:`metadata` to obtain metadata fields that will be included in the corresponding corpus. 
     So, if you wish to write a completely new feature generator, you can ignore the other methods. 
     """
 
@@ -127,14 +129,15 @@ class FeatureGenerator(object):
         df = pd.DataFrame(self.process_directory(directory))
         return df.T
     
-    def get_metadata(self):
+    @property
+    def metadata(self):
         """
-        Returns a dictionary of metadata that describes the parameters of the 
+        Returns metadata record that describes the parameters of the 
         features used for corpora created using this feature generator.
 
-        :rtype: dict
+        :rtype: Metadata
         """
-        return dict(features = 'words', lower_case=self.lower_case)
+        return Metadata(features='words', lower_case=self.lower_case)
 
 
 class Corpus(pd.DataFrame):
@@ -161,32 +164,39 @@ class Corpus(pd.DataFrame):
         
         # initialize or update metadata
         if metadata is None:
-            metadata = dict(
+            metadata = Metadata(
                 ordered=False,
                 words=None,
                 corpus=subdir if subdir else file,
                 frequencies=False)
         else:
-            metadata = dict(metadata) # copy it, just in case
-        metadata.update(kwargs)
+            metadata = Metadata(metadata) # copy it, just in case
 
         # initialize data
         if subdir is not None:
             df = feature_generator(subdir)
-            metadata.update(feature_generator.get_metadata())
+            metadata.update(feature_generator)
         elif file is not None:
             df = pd.read_csv(file, index_col=0).T
-            # TODO metadata handling. Sidecar files?
+            try:
+                metadata = Metadata.load(file)
+            except OSError as e:
+                pass    # use defaults
+                # FIXME error handling
             # TODO can we probably use hdf5?
         elif corpus is not None:
             df = corpus
             if isinstance(corpus, Corpus):
-                metadata = corpus.metadata
+                metadata.update(corpus.metadata)
         else:
             raise ValueError("Error. Only one of subdir and corpusfile can be not None")
-        if not metadata["ordered"]:
+
+        metadata.update(**kwargs)
+
+        if not metadata.ordered:
             df = df.iloc[:,(-df.sum()).argsort()]
-            metadata["ordered"] = True
+            metadata.ordered = True
+
         super().__init__(df)
         self.metadata = metadata
 
@@ -195,8 +205,8 @@ class Corpus(pd.DataFrame):
         saves corpus to file.
         """
         #print("Saving corpus to file corpus_words.csv") XXX logging
-        self.to_csv("filename", encoding="utf-8", na_rep=0, quoting=csv.QUOTE_NONNUMERIC)
-        # TODO metadata handling
+        self.T.to_csv(filename, encoding="utf-8", na_rep=0, quoting=csv.QUOTE_NONNUMERIC)
+        self.metadata.save(filename)
         # TODO different formats? compression?
 
     def get_mfw_table(self, mfwords):
@@ -210,12 +220,12 @@ class Corpus(pd.DataFrame):
         :returns: a new sorted corpus shortened to `mfwords`
         """        
         # FIXME use frequencies md
-        new_corpus = self / self.sum() if not self.metadata["frequencies"] else self
+        new_corpus = self / self.sum() if not self.metadata.frequencies else self
         #slice only mfwords from total list
         if mfwords > 0:
-            return Corpus(corpus = new_corpus.iloc[:,:mfwords], metadata=self.metadata, words=mfwords, frequencies=True)
+            return Corpus(corpus=new_corpus.iloc[:,:mfwords], metadata=self.metadata, words=mfwords, frequencies=True)
         else:
-            return Corpus(corpus = new_corpus, metadata = self.metadata, frequencies=True)
+            return Corpus(corpus=new_corpus, metadata=self.metadata, frequencies=True)
 
 
     def cull(self, ratio=None, threshold=None, keepna=False):
