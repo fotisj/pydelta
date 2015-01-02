@@ -14,6 +14,8 @@ import csv
 from math import ceil
 from .util import Metadata
 
+import logging
+
 
 class FeatureGenerator(object):
     """
@@ -45,6 +47,12 @@ class FeatureGenerator(object):
         self.encoding = encoding
         self.glob = glob
         self.token_pattern = token_pattern
+        self.logger = logging.getLogger(__name__)
+
+    def __repr__(self):
+        return type(self).__name__ + '(' + \
+                ', '.join( key+'='+repr(value) for key, value in self.__dict__.items() if key != 'logger' ) + \
+                ')'
 
     def tokenize(self, lines):
         """
@@ -103,6 +111,7 @@ class FeatureGenerator(object):
         :returns: A :class:`pd.Series` with feature counts, its name set according to :meth:`get_name`
         :rtype: pd.Series
         """
+        self.logger.info("Reading %s ...", filename)
         with open(filename, "rt", encoding=self.encoding) as file:
             series = self.count_tokens(file)
             if series.name is None:
@@ -118,6 +127,10 @@ class FeatureGenerator(object):
         :returns: a :class:`dict` mapping name to :class:`pd:Series`
         """
         filenames = glob.glob(os.path.join(directory, self.glob))
+        if len(filenames) == 0:
+            self.logger.error("No files matching %s in %s. Feature matrix will be empty.", self.glob, directory)
+        else:
+            self.logger.info("Reading %d files matching %s from %s", len(filenames), self.glob, directory)
         data = (self.process_file(filename) for filename in filenames)
         return { series.name : series for series in data }
 
@@ -154,6 +167,7 @@ class Corpus(pd.DataFrame):
         :param dict metadata: A dictionary with metadata to copy into the new corpus.
         :param **kwargs: Additional keyword arguments will be set in the metadata record of the new corpus.
         """
+        logger = logging.getLogger(__name__)
 
         # normalize the source stuff
         if subdir is not None:
@@ -174,15 +188,16 @@ class Corpus(pd.DataFrame):
 
         # initialize data
         if subdir is not None:
+            logger.info("Creating corpus by reading %s using %s", subdir, feature_generator)
             df = feature_generator(subdir)
             metadata.update(feature_generator)
         elif file is not None:
+            logger.info("Loading corpus from CSV file %s ...", file)
             df = pd.read_csv(file, index_col=0).T
             try:
                 metadata = Metadata.load(file)
             except OSError as e:
-                pass    # use defaults
-                # FIXME error handling
+                self.logger.warning("Failed to load metadata for %s. Using defaults: %s", file, metadata, exc_info=True)
             # TODO can we probably use hdf5?
         elif corpus is not None:
             df = corpus
@@ -198,13 +213,14 @@ class Corpus(pd.DataFrame):
             metadata.ordered = True
 
         super().__init__(df)
+        self.logger = logger
         self.metadata = metadata
 
     def save(self, filename="corpus_words.csv"):
         """
         saves corpus to file.
         """
-        #print("Saving corpus to file corpus_words.csv") XXX logging
+        self.logger.info("Saving corpus to %s ...", filename)
         self.T.to_csv(filename, encoding="utf-8", na_rep=0, quoting=csv.QUOTE_NONNUMERIC)
         self.metadata.save(filename)
         # TODO different formats? compression?
@@ -219,7 +235,6 @@ class Corpus(pd.DataFrame):
         :param mfwords: number of most frequent words in the new corpus.
         :returns: a new sorted corpus shortened to `mfwords`
         """        
-        # FIXME use frequencies md
         new_corpus = self / self.sum() if not self.metadata.frequencies else self
         #slice only mfwords from total list
         if mfwords > 0:
@@ -256,8 +271,6 @@ class Corpus(pd.DataFrame):
         if not keepna:
             culled = culled.fillna(0)
         return Corpus(corpus=culled, metadata=self.metadata, culling=threshold)
-
-
 
     @staticmethod
     def diversity(values):
