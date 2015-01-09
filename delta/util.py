@@ -26,6 +26,28 @@ class Metadata(object):
         """
         self.update(*args, **kwargs)
 
+    def _update_from(self, d):
+        """
+        Internal helper to update inner dictionary 'with semantics'. This will
+        append rather then overwrite existing md fields if they are in a
+        specified list. Clients should use :meth:`update` or the constructor
+        instead.
+
+        :param dict d: Dictionary to update from.
+        """
+        if isinstance(d, dict):
+            appendables = ('normalization',)
+            d2 = dict(d)
+
+            for field in appendables:
+                if field in d and field in self.__dict__:
+                    d2[field] = self.__dict__[field] + d[field]
+
+            self.__dict__.update(d2)
+        else:
+            self.__dict__.update(d)
+
+
     def update(self, *args, **kwargs):
         """
         Updates this metadata record from the arguments. Arguments may be:
@@ -38,14 +60,14 @@ class Metadata(object):
         """
         for arg in args:
             if isinstance(arg, Metadata):
-                self.__dict__.update(arg.__dict__)
+                self._update_from(arg.__dict__)
             elif "metadata" in dir(arg) and isinstance(arg.metadata, Metadata):
-                self.__dict__.update(arg.metadata.__dict__)
+                self._update_from(arg.metadata.__dict__)
             elif isinstance(arg, str):
-                self.__dict__.update(json.loads(arg))
+                self._update_from(json.loads(arg))
             else:
-                self.__dict__.update(arg)
-        self.__dict__.update(kwargs)
+                self._update_from(arg)
+        self._update_from(kwargs)
 
     @staticmethod
     def metafilename(filename):
@@ -94,4 +116,9 @@ class Metadata(object):
                         for key, value in self.__dict__.items()) + ')'
 
     def to_json(self, **kwargs):
+        """
+        Returns a JSON string containing this metadata object's contents.
+
+        :param **kwargs: Arguments passed to :func:`json.dumps`
+        """
         return json.dumps(self.__dict__, **kwargs)

@@ -12,3 +12,5 @@ __version__ = '0.2.0'
 __author__ = 'Fotis Jannidis, Thorsten Vitt'
 
 from .corpus import Corpus, FeatureGenerator
+from .deltas import registry, Normalization, DeltaFunction, \
+        PDistDeltaFunction, CompositeDeltaFunction
