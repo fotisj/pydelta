@@ -276,10 +276,13 @@ class DeltaFunction:
             df[b, a] = delta
         return df.fillna(0)
 
-    def __call__(self, corpus):
-        return self.iterate_distance(corpus)
-        # TODO Class wrapping and metadata
+    def create_result(self, df, corpus):
+        return DistanceMatrix(df, corpus.metadata, corpus=corpus, 
+                delta=self.name,
+                delta_descriptor=self.descriptor)
 
+    def __call__(self, corpus):
+        return self.create_result(self.iterate_distance(corpus), corpus)
 
 class CompositeDeltaFunction(DeltaFunction):
     """
@@ -302,7 +305,7 @@ class CompositeDeltaFunction(DeltaFunction):
     def __call__(self, corpus):
         for normalization in self.normalizations:
             corpus = normalization(corpus)
-        return self.basis(corpus)
+        return self.create_result(self.basis(corpus), corpus)
 
 
 class PDistDeltaFunction(DeltaFunction):
@@ -327,9 +330,32 @@ class PDistDeltaFunction(DeltaFunction):
         super().__init__(descriptor=name, name=name, title=title, register=register)
 
     def __call__(self, corpus):
-        return pd.DataFrame(index=corpus.index, columns=corpus.index, 
-                data=ssd.squareform(ssd.pdist(corpus, self.metric, self.kwargs)))
+        return self.create_result(pd.DataFrame(index=corpus.index, columns=corpus.index, 
+                data=ssd.squareform(ssd.pdist(corpus, self.metric, self.kwargs))), corpus)
 
+
+class DistanceMatrix(pd.DataFrame):
+    """
+    A distance matrix is the result of applying a :class:`DeltaFunction` to a
+    :class:`Corpus`.
+    """
+    
+    def __init__(self, df, metadata, corpus=None, **kwargs):
+        super().__init__(df)
+        self.metadata = Metadata(metadata, **kwargs)
+
+    @classmethod
+    def from_csv(cls, filename):
+        """
+        Loads a distance matrix from a cross-table style csv file.
+        """
+        df = pd.DataFrame.from_csv(filename)
+        md = Metadata.load(filename)
+        return cls(df, md)
+
+    def save(self, filename):
+        self.to_csv(filename)
+        self.metadata.save(filename)
 
 
 ################# Now a bunch of normalizations:
