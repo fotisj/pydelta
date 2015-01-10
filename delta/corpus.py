@@ -212,7 +212,7 @@ class Corpus(pd.DataFrame):
             df = df.iloc[:,(-df.sum()).argsort()]
             metadata.ordered = True
 
-        super().__init__(df)
+        super().__init__(df.fillna(0))
         self.logger = logger
         self.metadata = metadata
 
