@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Contains utility classes and functions.
 """
@@ -122,3 +123,97 @@ class Metadata(object):
         :param **kwargs: Arguments passed to :func:`json.dumps`
         """
         return json.dumps(self.__dict__, **kwargs)
+
+
+class DocumentDescriber:
+    """
+    DocumentDescribers are able to extract metadata from the document IDs of a corpus. 
+
+    The idea is that a :class:`Corpus` contains some sort of document name
+    (e.g., original filenames), however, some components would be interested in
+    information inferred from metadata. A DocumentDescriber will be able to
+    produce this information from the document name, be it by inferring it
+    directly (e.g., using some filename policy) or by using an external
+    database.
+
+    This base implementation expects filenames of the format
+    "Author_Title.ext" and returns author names as groups and titles as
+    in-group labels.
+
+    The :class:`DefaultDocumentDescriber` adds author and title shortening, and we plan
+    a metadata based :class:`TableDocumentDescriber` that uses an external metadata table.
+    """
+
+    def group_name(self, document_name):
+        """
+        Returns the unique name of the group the document belongs to.
+
+        The default implementation returns the part of the document name before
+        the first ``_``.
+        """
+        return document_name.split('_')[0]
+
+    def item_name(self, document_name):
+        """
+        Returns the name of the item within the group.
+
+        The default implementation returns the part of the document name after
+        the first ``_``.
+        """
+        return document_name.split('_')[1]
+
+    def group_label(self, document_name):
+        """
+        Returns a (maybe shortened) label for the group, for display purposes.
+
+        The default implementation just returns the :meth:`group_name`.
+        """
+        return self.group_name(document_name)
+
+    def item_label(self, document_name):
+        """
+        Returns a (maybe shortened) label for the item within the group, for
+        display purposes.
+
+        The default implementation just returns the :meth:`item_name`.
+        """
+        return self.item_name(document_name)
+        
+    def label(self, document_name):
+        """
+        Returns a label for the document (including its group).
+        """
+        return self.group_label(document_name) + ': ' + self.item_label(document_name)
+
+    def groups(self, documents):
+        """
+        Returns the names of all groups of the given list of documents.
+        """
+        return { self.group_name(document) for document in documents }
+
+class DefaultDocumentDescriber(DocumentDescriber):
+
+    def group_label(self, document_name):
+        """
+        Returns just the author's surname.
+        """
+        return self.group_name(document_name).split(',')[0]
+
+    def item_label(self, document_name):
+        """
+        Shortens the title to a meaningful but short string.
+        """
+        junk = ["Ein", "Eine", "Der", "Die", "Das"]
+        title = self.item_name(document_name)
+        title_parts = title.split(" ")
+        #getting rid of file ending .txt
+        if ".txt" in title_parts[-1]:
+            title_parts[-1] = title_parts[-1].split(".")[0]
+        #getting rid of junk at the beginning of the title
+        if title_parts[0] in junk:
+            title_parts.remove(title_parts[0])
+        t = " ".join(title_parts)
+        if len(t) > 25:
+            return t[0:24] + '…'
+        else:
+            return t

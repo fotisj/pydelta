@@ -176,6 +176,7 @@ class Normalization:
 
     def __call__(self, corpus, *args, **kwargs):
         return Corpus(self.normalize(corpus, *args, **kwargs), 
+                document_describer=corpus.document_describer,
                 metadata=corpus.metadata, normalization=(self.name,))
 
     def __str__(self):
@@ -340,9 +341,16 @@ class DistanceMatrix(pd.DataFrame):
     :class:`Corpus`.
     """
     
-    def __init__(self, df, metadata, corpus=None, **kwargs):
+    def __init__(self, df, metadata, corpus=None, document_describer=None, **kwargs):
         super().__init__(df)
         self.metadata = Metadata(metadata, **kwargs)
+        if document_describer is not None:
+            self.document_describer = document_describer
+        elif corpus is not None:
+            self.document_describer = corpus.document_describer
+        else:
+            self.document_describer = None
+
 
     @classmethod
     def from_csv(cls, filename):

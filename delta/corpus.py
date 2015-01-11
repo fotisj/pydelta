@@ -12,7 +12,7 @@ import pandas as pd
 import collections
 import csv
 from math import ceil
-from .util import Metadata
+from .util import Metadata, DocumentDescriber, DefaultDocumentDescriber
 
 import logging
 
@@ -155,7 +155,9 @@ class FeatureGenerator(object):
 
 class Corpus(pd.DataFrame):
 
-    def __init__(self, subdir=None, file=None, corpus=None, feature_generator=FeatureGenerator(),
+    def __init__(self, subdir=None, file=None, corpus=None, 
+            feature_generator=FeatureGenerator(),
+            document_describer=DefaultDocumentDescriber(),
             metadata=None, **kwargs):
         """
         Creates a new Corpus. 
@@ -215,6 +217,7 @@ class Corpus(pd.DataFrame):
         super().__init__(df.fillna(0))
         self.logger = logger
         self.metadata = metadata
+        self.document_describer = document_describer 
 
     def save(self, filename="corpus_words.csv"):
         """
@@ -238,9 +241,13 @@ class Corpus(pd.DataFrame):
         new_corpus = self / self.sum() if not self.metadata.frequencies else self
         #slice only mfwords from total list
         if mfwords > 0:
-            return Corpus(corpus=new_corpus.iloc[:,:mfwords], metadata=self.metadata, words=mfwords, frequencies=True)
+            return Corpus(corpus=new_corpus.iloc[:,:mfwords], 
+                    document_describer=self.document_describer, 
+                    metadata=self.metadata, words=mfwords, frequencies=True)
         else:
-            return Corpus(corpus=new_corpus, metadata=self.metadata, frequencies=True)
+            return Corpus(corpus=new_corpus, 
+                    document_describer=self.document_describer, 
+                    metadata=self.metadata, frequencies=True)
 
 
     def cull(self, ratio=None, threshold=None, keepna=False):
@@ -270,24 +277,6 @@ class Corpus(pd.DataFrame):
         culled = self.replace(0, float('NaN')).dropna(thresh=threshold, axis=1)
         if not keepna:
             culled = culled.fillna(0)
-        return Corpus(corpus=culled, metadata=self.metadata, culling=threshold)
-
-    @staticmethod
-    def diversity(values):
-        """
-        calculates the spread or diversity (wikipedia) of a laplace distribution of values
-        see Argamon's Interpreting Burrow's Delta p. 137 and
-        http://en.wikipedia.org/wiki/Laplace_distribution
-        couldn't find a ready-made solution in the python libraries
-
-        :param values: a pd.Series of values
-        """
-        return (values - values.median()).abs().sum() / values.size
-
-    def diversities(self):
-        """
-        calculate the 'spread' of word distributions assuming they are laplace dist.
-
-        :returns: a :class:`pandas.Series` with the diversity for each word in the corpus
-        """
-        return self.apply(self.diversity)
+        return Corpus(corpus=culled, 
+                document_describer=self.document_describer,
+                metadata=self.metadata, culling=threshold)
