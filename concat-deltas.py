@@ -17,6 +17,7 @@ import os
 import delta
 import scipy.cluster.hierarchy as sch
 import matplotlib.pyplot as plt
+from sklearn import metrics
 
 STYLO_ALGS = {
        "AL": "Linear_Delta",
@@ -60,17 +61,44 @@ def corpus_name(dirname):
         return dirname
 
 def cluster_errors_2(delta, z=None):
+    """
+    Calculates the number of cluster errors by:
+    1. calculating the total number of different authors in the set
+    2. calling sch.fcluster to generate at most that many flat clusters 
+    3. for each of those clusters, the cluster errors are the number of authors in this cluster - 1
+    4. sum of each cluster's errors = result
+    """
     if z is None:
         z = sch.ward(delta)
 
     clusters = pd.DataFrame(index=delta.index)
     clusters["Author"] = [ s.split("_")[0] for s in clusters.index ]
     def nauthors(df):
+        """Number of different authors in that df"""
         return len(set(df.Author))
     author_count = nauthors(clusters)
     clusters["Cluster"] = sch.fcluster(z, author_count, criterion='maxclust')
     return int((clusters.groupby("Cluster").agg(nauthors)-1).sum())
 
+def adjusted_rand_index(delta, z):
+    """
+    Calculates the Adjusted Rand Index for the given delta and linkage matrix.
+    http://scikit-learn.org/stable/modules/generated/sklearn.metrics.adjusted_rand_score.html#sklearn.metrics.adjusted_rand_score
+    """
+
+    def author(author_work):
+        return author_work.split('_')[0]
+
+    # Ground truth: Since ARI works with permutations, we can just assign each
+    # author an arbitrary number. We just need to assign the same number to all
+    # works of the same author.
+    works = delta.index
+    authors = { author(work) for work in works }
+    author_idx = dict(zip(authors, range(0, len(authors))))
+    truth = [ author_idx[author(work)] for work in works ]
+    clusters = sch.fcluster(z, len(authors), criterion='maxclust')
+    ari = metrics.adjusted_rand_score(truth, clusters)
+    return ari
 
 def _color_coding_author_names(ax, fig_orientation):
     """color codes author names
@@ -117,7 +145,7 @@ def read_directory(directory, evaluate=True):
 
     ev = delta.Eval()
     scores = pd.DataFrame(columns=["Algorithm", "Words", "Case_Sensitive", "Corpus",
-        "Simple_Delta_Score", "Clustering_Errors", "Errors2"])
+        "Simple_Delta_Score", "Clustering_Errors", "Errors2", "Adjusted_Rand_Index"])
     scores.index.name = 'deltafile'
     corpus = corpus_name(directory)
 
@@ -159,6 +187,7 @@ def read_directory(directory, evaluate=True):
                     progress()
                     total, errors = ev.evaluate_results(dendrogram)
                     errors2 = cluster_errors_2(crosstab, linkage)
+                    ari = adjusted_rand_index(crosstab, linkage)
                     if options.dendrograms:
                         plt.title("{} {} CS: {} mfw {}".format(corpus, alg, case_sensitive, words))
                         plt.xlabel("Errors {}, Score {}".format(errors, simple_score))
@@ -170,7 +199,7 @@ def read_directory(directory, evaluate=True):
                             dpi=600,
                             orientation="portrait", papertype="a4", 
                             format="pdf") 
-                    scores.loc[filename] = (alg, words, case_sensitive, corpus, simple_score, errors, errors2)
+                    scores.loc[filename] = (alg, words, case_sensitive, corpus, simple_score, errors, errors2, ari)
                     progress()
                 else:
                     progress("...")
