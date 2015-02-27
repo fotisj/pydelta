@@ -943,6 +943,34 @@ class Eval():
         """
         return self._purify_delta(delta).unstack().dropna()
 
+    def delta_value_df(self, delta):
+        values = self.delta_values(delta).to_frame()
+        values.columns = pd.Index(['Delta'])
+        values['Author1'] = values.index.to_series().map(lambda t: t[0].split('_')[0])
+        values['Author2'] = values.index.to_series().map(lambda t: t[1].split('_')[0])
+        return values
+
+    def f_ratio(self, delta):
+        """
+        Calculates the (normalized) F-ratio over the distance matrix, according
+        to Heeringa et al.
+
+        Checks whether the distances within a group (i.e., texts with the same author)
+        are much smaller thant the distances between groups
+        """
+        values = self.delta_value_df(delta)
+        
+        def ratio(group):
+            same = group.Author1 == group.Author2
+            size = same.value_counts()
+            within = (group[same].Delta**2).sum() / size[True]
+            without = (group[same == False].Delta**2).sum() / size[False]
+            return within / without
+
+        ratios = values.groupby('Author1').agg(ratio).Delta
+        return ratios.sum() / ratios.index.size
+
+
     def normalize_delta(self, delta):
         """Standardizes the given delta matrix using its z-Score."""
         deltas = self.delta_values(delta)
