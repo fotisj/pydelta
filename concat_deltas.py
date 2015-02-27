@@ -167,7 +167,8 @@ def read_directory(directory, evaluate=True):
     ev = delta.Eval()
     scores = pd.DataFrame(columns=["Algorithm", "Words", "Case_Sensitive", "Corpus",
         "Simple_Delta_Score", "Clustering_Errors", "Errors2", "Adjusted_Rand_Index",
-        "Purity", "Entropy"])
+        "Purity", "Entropy", "Homogenity", "Completeness", "V_Measure", 
+        "Adjusted_Mutual_Information"])
     scores.index.name = 'deltafile'
     corpus = corpus_name(directory)
 
@@ -209,6 +210,7 @@ def read_directory(directory, evaluate=True):
                     progress()
                     total, errors = ev.evaluate_results(dendrogram)
                     clustering = fclustering(crosstab, linkage)
+                    homo, compl, vmeasure = metrics.homogeneity_completeness_v_measure(clustering.AuthorID, clustering.Cluster)
                     if options.dendrograms:
                         plt.title("{} {} CS: {} mfw {}".format(corpus, alg, case_sensitive, words))
                         plt.xlabel("Errors {}, Score {}".format(errors, simple_score))
@@ -224,7 +226,9 @@ def read_directory(directory, evaluate=True):
                             errors, cluster_errors_2(clustering), 
                             adjusted_rand_index(clustering),
                             purity(clustering), 
-                            entropy(clustering))
+                            entropy(clustering),
+                            homo, compl, vmeasure,
+                            metrics.adjusted_mutual_info_score(clustering.AuthorID, clustering.Cluster))
                     progress()
                 else:
                     progress("...")
