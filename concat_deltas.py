@@ -13,6 +13,7 @@ mpl.use('Agg')
 
 import argparse
 import pandas as pd
+import numpy as np
 import os
 import delta
 import scipy.cluster.hierarchy as sch
@@ -29,20 +30,7 @@ STYLO_ALGS = {
        "MH": "Manhattan"
 }
 
-args = argparse.ArgumentParser(description="Convert a bunch of delta csvs to one file")
-args.add_argument("deltas", help="directories containing the delta csv files", nargs='+')
-args.add_argument("-v", "--verbose", help="be verbose", action='store_true')
-args.add_argument("-e", "--evaluate", help="evaluate each delta matrix", action='store_true')
-args.add_argument("-a", "--all", nargs=1, default="", 
-        help="Also concatenate all subcorpora and same them to the given file.")
-args.add_argument("-p", "--pickle", action="store_true",
-        help="The raw deltas will be pickled instead of stored as csv")
-args.add_argument("-c", "--case-sensitive", action="store_true", default=False, 
-        help="""When reading stylo written difference tables, assume they are
-                for case-sensitive data. The default is case-insensitive.""")
-args.add_argument("-d", "--dendrograms", nargs=1,
-        help="Generate dendrograms and store them in the given directory.")
-options = args.parse_args()
+options = None
 
 def progress(msg='.', end=''):
     """
@@ -60,7 +48,34 @@ def corpus_name(dirname):
     else:
         return dirname
 
-def cluster_errors_2(delta, z=None):
+def nauthors(df):
+    """
+    With df being a data frame that has an Author column, return the number of
+    different authors in df.
+    """
+    return len(set(df.Author))
+
+
+def fclustering(delta, z):
+    """
+    Calculates a flat clustering for the labeled distance matrix delta
+    and the corresponding linkeage matrix z.
+
+    Returns a dataframe with the index from delta and the following columns:
+    * Author: the author name from the label
+    * AuthorID: numerical ID for each author, to be used as ground truth
+    * Cluster: numerical ID of each cluster
+    """
+    clustering = pd.DataFrame(index=delta.index)
+    clustering["Author"] = [ s.split("_")[0] for s in clustering.index ]
+    author_count = nauthors(clustering)
+    author_idx = pd.Series(index=clustering.Author.value_counts().index,
+            data=range(0, author_count))
+    clustering["AuthorID"] = clustering.Author.map(author_idx)
+    clustering["Cluster"] = sch.fcluster(z, author_count, criterion='maxclust')
+    return clustering
+
+def cluster_errors_2(clustering):
     """
     Calculates the number of cluster errors by:
     1. calculating the total number of different authors in the set
@@ -68,37 +83,43 @@ def cluster_errors_2(delta, z=None):
     3. for each of those clusters, the cluster errors are the number of authors in this cluster - 1
     4. sum of each cluster's errors = result
     """
-    if z is None:
-        z = sch.ward(delta)
+    return int((clustering.groupby("Cluster").agg(nauthors).Author-1).sum())
 
-    clusters = pd.DataFrame(index=delta.index)
-    clusters["Author"] = [ s.split("_")[0] for s in clusters.index ]
-    def nauthors(df):
-        """Number of different authors in that df"""
-        return len(set(df.Author))
-    author_count = nauthors(clusters)
-    clusters["Cluster"] = sch.fcluster(z, author_count, criterion='maxclust')
-    return int((clusters.groupby("Cluster").agg(nauthors)-1).sum())
-
-def adjusted_rand_index(delta, z):
+def purity(clustering):
     """
-    Calculates the Adjusted Rand Index for the given delta and linkage matrix.
+    To compute purity, each cluster is assigned to the class which is most
+    frequent in the cluster, and then the accuracy of this assignment is
+    measured by counting the number of correctly assigned documents and
+    dividing by $N$
+    """
+    def correctly_classified(cluster):
+        return cluster.Author.value_counts()[0]
+    return int(clustering.groupby("Cluster").agg(correctly_classified).Author.sum()) / clustering.index.size
+
+
+def entropy(clustering):
+    """
+    Smaller entropy values suggest a better clustering.
+    """
+    classes = clustering.Author.unique().size 
+    def cluster_entropy(cluster):
+        class_counts = cluster.value_counts()
+        return   float((class_counts / cluster.index.size 
+               * np.log(class_counts / cluster.index.size)
+               ).sum() * (-1)/np.log(classes))
+    def weighted_cluster_entropy(cluster):
+        return (cluster.index.size / clustering.index.size) * cluster_entropy(cluster)
+
+    return clustering.groupby("Cluster").agg(weighted_cluster_entropy).Author.sum()
+
+
+def adjusted_rand_index(clustering):
+    """
+    Calculates the Adjusted Rand Index for the given flat clustering
     http://scikit-learn.org/stable/modules/generated/sklearn.metrics.adjusted_rand_score.html#sklearn.metrics.adjusted_rand_score
     """
+    return metrics.adjusted_rand_score(clustering.AuthorID, clustering.Cluster)
 
-    def author(author_work):
-        return author_work.split('_')[0]
-
-    # Ground truth: Since ARI works with permutations, we can just assign each
-    # author an arbitrary number. We just need to assign the same number to all
-    # works of the same author.
-    works = delta.index
-    authors = { author(work) for work in works }
-    author_idx = dict(zip(authors, range(0, len(authors))))
-    truth = [ author_idx[author(work)] for work in works ]
-    clusters = sch.fcluster(z, len(authors), criterion='maxclust')
-    ari = metrics.adjusted_rand_score(truth, clusters)
-    return ari
 
 def _color_coding_author_names(ax, fig_orientation):
     """color codes author names
@@ -145,7 +166,8 @@ def read_directory(directory, evaluate=True):
 
     ev = delta.Eval()
     scores = pd.DataFrame(columns=["Algorithm", "Words", "Case_Sensitive", "Corpus",
-        "Simple_Delta_Score", "Clustering_Errors", "Errors2", "Adjusted_Rand_Index"])
+        "Simple_Delta_Score", "Clustering_Errors", "Errors2", "Adjusted_Rand_Index",
+        "Purity", "Entropy"])
     scores.index.name = 'deltafile'
     corpus = corpus_name(directory)
 
@@ -186,8 +208,7 @@ def read_directory(directory, evaluate=True):
                             leaf_font_size=8, link_color_func=lambda k: 'k', orientation="left")
                     progress()
                     total, errors = ev.evaluate_results(dendrogram)
-                    errors2 = cluster_errors_2(crosstab, linkage)
-                    ari = adjusted_rand_index(crosstab, linkage)
+                    clustering = fclustering(crosstab, linkage)
                     if options.dendrograms:
                         plt.title("{} {} CS: {} mfw {}".format(corpus, alg, case_sensitive, words))
                         plt.xlabel("Errors {}, Score {}".format(errors, simple_score))
@@ -199,7 +220,11 @@ def read_directory(directory, evaluate=True):
                             dpi=600,
                             orientation="portrait", papertype="a4", 
                             format="pdf") 
-                    scores.loc[filename] = (alg, words, case_sensitive, corpus, simple_score, errors, errors2, ari)
+                    scores.loc[filename] = (alg, words, case_sensitive, corpus, simple_score, 
+                            errors, cluster_errors_2(clustering), 
+                            adjusted_rand_index(clustering),
+                            purity(clustering), 
+                            entropy(clustering))
                     progress()
                 else:
                     progress("...")
@@ -226,43 +251,65 @@ def read_directory(directory, evaluate=True):
     return (corpus_deltas, scores)
 
 
-all_deltas = None
-all_scores = None
+def main():
+    global options
 
-for directory in options.deltas:
-    (deltas, scores) = read_directory(directory)
-    progress("Saving deltas for {} ...".format(directory))
-    if options.pickle:
-        deltas.to_pickle(directory + ".pickle")
-    else:
-        deltas.to_csv(directory + ".csv")
-    progress("\n")
+    args = argparse.ArgumentParser(description="Convert a bunch of delta csvs to one file")
+    args.add_argument("deltas", help="directories containing the delta csv files", nargs='+')
+    args.add_argument("-v", "--verbose", help="be verbose", action='store_true')
+    args.add_argument("-e", "--evaluate", help="evaluate each delta matrix", action='store_true')
+    args.add_argument("-a", "--all", nargs=1, default="", 
+            help="Also concatenate all subcorpora and same them to the given file.")
+    args.add_argument("-p", "--pickle", action="store_true",
+            help="The raw deltas will be pickled instead of stored as csv")
+    args.add_argument("-c", "--case-sensitive", action="store_true", default=False, 
+            help="""When reading stylo written difference tables, assume they are
+                    for case-sensitive data. The default is case-insensitive.""")
+    args.add_argument("-d", "--dendrograms", nargs=1,
+            help="Generate dendrograms and store them in the given directory.")
+    options = args.parse_args()
+
+    all_deltas = None
+    all_scores = None
+
+    for directory in options.deltas:
+        (deltas, scores) = read_directory(directory)
+        progress("Saving deltas for {} ...".format(directory))
+        if options.pickle:
+            deltas.to_pickle(directory + ".pickle")
+        else:
+            deltas.to_csv(directory + ".csv")
+        progress("\n")
+
+        if options.evaluate:
+            progress("Saving scores for {} ...\n".format(directory))
+            scores.to_csv(directory + "-scores.csv")
+
+        if options.all:
+            if all_deltas is None:
+                all_deltas = deltas
+            else:
+                all_deltas = pd.concat([all_deltas, deltas])
+
+        if options.evaluate:
+            if all_scores is None:
+                all_scores = scores
+            else:
+                all_scores = pd.concat([all_scores, scores])
 
     if options.evaluate:
-        progress("Saving scores for {} ...\n".format(directory))
-        scores.to_csv(directory + "-scores.csv")
+        progress("Saving all scores to all-scores.csv")
+        all_scores.to_csv("all-scores.csv")
+        progress("\n")
 
     if options.all:
-        if all_deltas is None:
-            all_deltas = deltas
+        progress("Saving all deltas to {}".format(options.all))
+        if options.pickle:
+            all_deltas.to_pickle(options.all)
         else:
-            all_deltas = pd.concat([all_deltas, deltas])
+            all_deltas.to_csv(options.all)
+        progress("\n")
 
-    if options.evaluate:
-        if all_scores is None:
-            all_scores = scores
-        else:
-            all_scores = pd.concat([all_scores, scores])
 
-if options.evaluate:
-    progress("Saving all scores to all-scores.csv")
-    all_scores.to_csv("all-scores.csv")
-    progress("\n")
-
-if options.all:
-    progress("Saving all deltas to {}".format(options.all))
-    if options.pickle:
-        all_deltas.to_pickle(options.all)
-    else:
-        all_deltas.to_csv(options.all)
-    progress("\n")
+if __name__ == '__main__':
+    main()
