@@ -934,7 +934,7 @@ class Eval():
 
         I.e. the diagonal and the lower left triangle are set to np.na.
         """
-        return delta.where(np.triu(np.ones(delta.shape)))
+        return delta.where(np.triu(np.ones(delta.shape), k=1))
 
     def delta_values(self, delta):
         r"""
