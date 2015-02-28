@@ -166,7 +166,7 @@ def read_directory(directory, evaluate=True):
 
     ev = delta.Eval()
     scores = pd.DataFrame(columns=["Algorithm", "Words", "Case_Sensitive", "Corpus",
-        "Simple_Delta_Score", "F_Ratio", "Clustering_Errors", "Errors2", "Adjusted_Rand_Index",
+        "Simple_Delta_Score", "F_Ratio", "Fisher_LD", "Clustering_Errors", "Errors2", "Adjusted_Rand_Index",
         "Purity", "Entropy", "Homogenity", "Completeness", "V_Measure", 
         "Adjusted_Mutual_Information"])
     scores.index.name = 'deltafile'
@@ -200,6 +200,7 @@ def read_directory(directory, evaluate=True):
                 if evaluate:
                     simple_score = ev.evaluate_deltas(crosstab, verbose=False)
                     f_ratio = ev.f_ratio(crosstab)
+                    fisher_ld = ev.fisher_ld(crosstab)
                     progress()
                     linkage = sch.ward(crosstab)
                     plt.clf()
@@ -224,7 +225,7 @@ def read_directory(directory, evaluate=True):
                             orientation="portrait", papertype="a4", 
                             format="pdf") 
                     scores.loc[filename] = (alg, words, case_sensitive, corpus, simple_score, 
-                            f_ratio, errors, cluster_errors_2(clustering), 
+                            f_ratio, fisher_ld, errors, cluster_errors_2(clustering), 
                             adjusted_rand_index(clustering),
                             purity(clustering), 
                             entropy(clustering),

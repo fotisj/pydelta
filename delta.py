@@ -33,6 +33,7 @@ import argparse
 import pandas as pd
 import numpy as np
 from scipy import linalg
+from scipy.misc import comb
 import scipy.cluster.hierarchy as sch
 import scipy.spatial.distance as ssd
 import matplotlib.pylab as plt
@@ -933,7 +934,7 @@ class Eval():
 
         I.e. the diagonal and the lower left triangle are set to np.na.
         """
-        return delta.where(np.triu(np.ones(delta.shape), k=1))
+        return delta.where(np.triu(np.ones(delta.shape)))
 
     def delta_values(self, delta):
         r"""
@@ -944,10 +945,19 @@ class Eval():
         return self._purify_delta(delta).unstack().dropna()
 
     def delta_value_df(self, delta):
+        """
+        Returns an unstacked form of the given delta table along with additional 
+        metadata. Assumes delta is symmetric.
+
+        The dataframe returned has the columns Author1, Author2, Text1, Text2, and Delta,
+        it has an entry for every unique combination of texts
+        """
         values = self.delta_values(delta).to_frame()
         values.columns = pd.Index(['Delta'])
         values['Author1'] = values.index.to_series().map(lambda t: t[0].split('_')[0])
         values['Author2'] = values.index.to_series().map(lambda t: t[1].split('_')[0])
+        values['Text1'] = values.index.to_series().map(lambda t: t[0])
+        values['Text2'] = values.index.to_series().map(lambda t: t[1])
         return values
 
     def f_ratio(self, delta):
@@ -969,6 +979,22 @@ class Eval():
 
         ratios = values.groupby('Author1').agg(ratio).Delta
         return ratios.sum() / ratios.index.size
+
+    def fisher_ld(self, delta):
+        """
+        cf. Heeringa et al.
+        """
+        values = self.delta_value_df(delta)
+
+        def ratio(group):
+            # group = all differences with the same Text1
+            ingroup = group[group.Author1 == group.Author2].Delta
+            outgroup = group[group.Author1 != group.Author2].Delta
+            return ((ingroup.mean() - outgroup.mean())**2) / (ingroup.var() + outgroup.var())
+
+        ratios = values.groupby('Text1').agg(ratio).Delta
+        return ratios.sum() / comb(len(values.Author1.unique()), 2)
+
 
 
     def normalize_delta(self, delta):
