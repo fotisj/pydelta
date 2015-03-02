@@ -148,7 +148,7 @@ class Corpus(pd.DataFrame):
     can be retrieved using :meth:`get_mfw_table`.
     """
 
-    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False, metadata=None, **kwargs):
+    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False, metadata=None, filelist=None, **kwargs):
         """
         Creates a new corpus. Exactly one of `subdir` or `file` or
         `corpus` should be present to determine the corpus content.
@@ -159,6 +159,7 @@ class Corpus(pd.DataFrame):
         :param encoding: Encoding of the files to read for ``subdir``
         :param lower_case: Whether to normalize all words to lower-case only.
         :param metadata: If present, this will initialize this object's metadata from the argument. Use this if the corpus you pass in is a plain dataframe.
+        :param filelist: List of files (w/o subdir!) to load from subdir.
 
         Additional keyword arguments will be stored as metadata.
         """
@@ -173,7 +174,7 @@ class Corpus(pd.DataFrame):
             metadata = dict(metadata) # copy it, just in ccase
         metadata.update(kwargs)
         if subdir is not None:
-            super().__init__(self.process_files(subdir, encoding, lower_case, False))
+            super().__init__(self.process_files(subdir, encoding, lower_case, False, filelist))
             metadata['ordered'] = True
         elif file is not None:
             super().__init__(pd.read_csv(file, index_col=0))
@@ -188,7 +189,7 @@ class Corpus(pd.DataFrame):
         self.metadata = metadata
 
 
-    def process_files(self, subdir, encoding, lower_case, frequencies=False):
+    def process_files(self, subdir, encoding, lower_case, frequencies=False, files=None):
         """
         Preprocessing all files ending with ``*.txt`` in corpus subdir.
         All files are tokenized.
@@ -204,7 +205,12 @@ class Corpus(pd.DataFrame):
         if not os.path.exists(subdir):
             raise Exception("The directory " + subdir + " doesn't exist. \nPlease add a directory " +
                             "with text files.\n")
-        filelist = glob.glob(subdir + os.sep + "*.txt")
+
+        if files:
+            filelist = [ os.path.join(subdir, f) for f in files ]
+        else:
+            filelist = glob.glob(os.path.join(subdir, "*.txt"))
+
         list_of_wordlists = []
         for file in filelist:
             list_of_wordlists.append(self.tokenize_file(file, encoding, lower_case, frequencies))

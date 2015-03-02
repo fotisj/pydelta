@@ -11,13 +11,33 @@ import os
 import pandas as pd
 import argparse
 from itertools import chain
+import randomize_texts as rt
 
-def filename(fname, mfw, lower_case):
-    return "{}.{:04}.{}.csv".format(
+def filename(textcount, fname, mfw, lower_case):
+    return "{}.{:04}.{}.{:03}.csv".format(
         fname.title(),
         mfw,
-        "case_insensitive" if lower_case else "case_sensitive")
+        "case_insensitive" if lower_case else "case_sensitive",
+        textcount)
 
+def parse_range(rangespec):
+    """
+    Creates a list of integers from a range specification in string form.
+
+    Syntax:
+
+        rangespec  ::= singlespec ("," singlespec )*
+        singlespec ::= start [":" stop [":" step]]
+
+    start, stop, step are arguments to :func:`range`. E.g.,
+    `100,500:2001:500,3000` yields `[100, 500, 1000, 1500, 2000, 3000]`
+    """
+    if isinstance(rangespec, list):
+        rangespec = ",".join(rangespec)
+    return list(chain.from_iterable(
+             range(*map(int, part.split(":"))) if ":" in part 
+             else [int(part)] 
+             for part in rangespec.split(",")))
 
 def sweep(corpus_dir='corpus',
           refcorpus_dir=None,
@@ -26,25 +46,32 @@ def sweep(corpus_dir='corpus',
           cont=False,
           mfws = [100, 500, 1000, 1500, 2000, 2500, 3000, 5000],
           frequency_table=None,
-          words = None):
+          words = None,
+          randomize_texts = None,
+          randomize_method = 'authorsfirst'
+          ):
     """
     """
     if words is not None:
-        if isinstance(words, list):
-            words = ",".join(words)            
-        mfws = list(chain.from_iterable( 
-                 range(*map(int, part.split(":"))) if ":" in part 
-                 else [int(part)] 
-                 for part in words.split(",")))
+        mfws = parse_range(words)
 
     print("MFW counts: ", *mfws)
+
+    if randomize_texts:
+        randomize_texts = parse_range(randomize_texts)
+        randomize_func  = rt.randomizations[randomize_method]
+        textlist = randomize_func(rt.list_subdir(corpus_dir))
+    else:
+        textlist = None
+        randomize_texts = [ len(rt.list_subdir(corpus_dir)) ]
 
     # The score df will be used to store the simple delta scores for each
     # combination as a rough first guide. This will be dumped to a CSV
     # file after at the end.
-    score_index = pd.MultiIndex.from_product([[name.title() for name in const.__dict__.keys()],
+    score_index = pd.MultiIndex.from_product([randomize_texts, 
+            [name.title() for name in const.__dict__.keys()],
             mfws,
-            [False, True]], names=["Algorithm", "Words", "Case Insensitive"])
+            [False, True]], names=["NTexts", "Algorithm", "Words", "Case Insensitive"])
     scores = pd.DataFrame(index=score_index, columns=["Score"])
 
     try:
@@ -53,46 +80,53 @@ def sweep(corpus_dir='corpus',
         if not (overwrite or cont):
             print("ERROR: Output folder {} already exists. Force overwriting using -f".format(output))
             return
+        
+        if textlist:
+            with open(os.path.join(output, 'texts.txt'), 'wt') as f:
+                f.writelines(l + '\n' for l in textlist)
 
     evaluate = Eval()
 
-    if frequency_table is None or len(frequency_table) == 0:
-        # Prepare the raw corpora
-        corpora = [Corpus(subdir=corpus_dir),
-                   Corpus(subdir=corpus_dir, lower_case=True)]
-        cases = (False, True)
-    else:
-        ft = pd.read_table(frequency_table[0], sep=" ", index_col=0).fillna(0) / 100
-        corpora = [None, Corpus(corpus=ft)]
-        cases = (True,)
+    for textcount in randomize_texts:
 
-    if refcorpus_dir is not None:
-        refcorpora = [Corpus(subdir=refcorpus_dir).get_mfw_table(0),
-                      Corpus(subdir=refcorpus_dir, lower_case=True).get_mfw_table(0)]
+        if frequency_table is None or len(frequency_table) == 0:
+            # Prepare the raw corpora
+            filelist = textlist[0:textcount] if textlist else None
+            corpora = [Corpus(subdir=corpus_dir, filelist=filelist),
+                       Corpus(subdir=corpus_dir, lower_case=True, filelist=filelist)]
+            cases = (False, True)
+        else:
+            ft = pd.read_table(frequency_table[0], sep=" ", index_col=0).fillna(0) / 100
+            corpora = [None, Corpus(corpus=ft)]
+            cases = (True,)
 
-    for mfw in mfws:
-        for fname, fno in const.__dict__.items():
-            for lc in cases:
-                outfn = os.path.join(output, filename(fname, mfw, lc))
-                if (cont and os.path.isfile(outfn)):
-                    print("Skipping {}: it already exists".format(outfn))
-                else:
-                    print("Preparing", outfn, "... ", end='')
-                    c_mfw = corpora[lc].get_mfw_table(mfw)
-                    if fno == const.ROTATED_DELTA:
-                        if refcorpus_dir is None:
-                            refc = corpora[lc]
-                        else:
-                            refc = refcorpora[lc]
+        if refcorpus_dir is not None:
+            refcorpora = [Corpus(subdir=refcorpus_dir).get_mfw_table(0),
+                          Corpus(subdir=refcorpus_dir, lower_case=True).get_mfw_table(0)]
+
+        for mfw in mfws:
+            for fname, fno in const.__dict__.items():
+                for lc in cases:
+                    outfn = os.path.join(output, filename(textcount, fname, mfw, lc))
+                    if (cont and os.path.isfile(outfn)):
+                        print("Skipping {}: it already exists".format(outfn))
                     else:
-                        refc = None
-                    delta = Delta(c_mfw, fno, refcorpus=refc)
-                    score = evaluate.evaluate_deltas(delta, verbose=False)
-                    print(score)
-                    scores.loc[fname.title(), mfw, lc] = score
-                    delta.to_csv(outfn)
-        # dump the scores after every alg at least
-        scores.to_csv(output + "_scores.csv")
+                        print("Preparing", outfn, "... ", end='')
+                        c_mfw = corpora[lc].get_mfw_table(mfw)
+                        if fno == const.ROTATED_DELTA:
+                            if refcorpus_dir is None:
+                                refc = corpora[lc]
+                            else:
+                                refc = refcorpora[lc]
+                        else:
+                            refc = None
+                        delta = Delta(c_mfw, fno, refcorpus=refc)
+                        score = evaluate.evaluate_deltas(delta, verbose=False)
+                        print(score)
+                        scores.loc[textcount, fname.title(), mfw, lc] = score
+                        delta.to_csv(outfn)
+            # dump the scores after every alg at least
+            scores.to_csv(output + "_scores.csv")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -117,6 +151,14 @@ if __name__ == '__main__':
                         """)
     parser.add_argument('-t', '--frequency-table', nargs=1, action="store",
             help="File with frequency tables from stylo, ignore corpus_dir")
+    parser.add_argument('-n', '--randomize-texts', nargs=1, default=None, metavar="SPEC",
+                        help="""
+                        Sweep over a subset of texts of varying size. The argument is a spec 
+                        as for the --words option. If given, a random list of the texts in
+                        the corpus is created and we iterate over the first n texts, with n
+                        according to this spec.
+                        """)
+    parser.add_argument('-m', '--randomize-method', choices=rt.randomizations, default='authorsfirst', help="Randomization method for variable number of texts")
     
     options = parser.parse_args()
     if options.output is None:
