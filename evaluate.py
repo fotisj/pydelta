@@ -65,6 +65,8 @@ def sweep(corpus_dir='corpus',
         textlist = None
         randomize_texts = [ len(rt.list_subdir(corpus_dir)) ]
 
+    print("Text counts:", *randomize_texts)
+
     # The score df will be used to store the simple delta scores for each
     # combination as a rough first guide. This will be dumped to a CSV
     # file after at the end.
@@ -80,14 +82,23 @@ def sweep(corpus_dir='corpus',
         if not (overwrite or cont):
             print("ERROR: Output folder {} already exists. Force overwriting using -f".format(output))
             return
-        
-        if textlist:
-            with open(os.path.join(output, 'texts.txt'), 'wt') as f:
+
+    if textlist:
+        textlist_name = os.path.join(output, 'texts.txt')
+        if cont and os.path.exists(textlist_name):
+            print("Reading already randomized text list from", textlist_name)
+            with open(textlist_name, 'rt') as f:
+                textlist = [l.strip() for l in f]
+        else:
+            print("Saving randomized text list to", textlist_name)
+            with open(textlist_name, 'wt') as f:
                 f.writelines(l + '\n' for l in textlist)
 
     evaluate = Eval()
 
     for textcount in randomize_texts:
+
+        print("Running experiments with {} texts ...".format(textcount))
 
         if frequency_table is None or len(frequency_table) == 0:
             # Prepare the raw corpora
