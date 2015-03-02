@@ -979,11 +979,13 @@ class Eval():
         def ratio(group):
             same = group.Author1 == group.Author2
             size = same.value_counts()
+            if size.index.size < 2:
+                return np.nan
             within = (group[same].Delta**2).sum() / size[True]
             without = (group[same == False].Delta**2).sum() / size[False]
             return within / without
 
-        ratios = values.groupby('Author1').agg(ratio).Delta
+        ratios = values.groupby('Author1').apply(ratio)
         return ratios.sum() / ratios.index.size
 
     def fisher_ld(self, delta):
@@ -998,7 +1000,7 @@ class Eval():
             outgroup = group[group.Author1 != group.Author2].Delta
             return ((ingroup.mean() - outgroup.mean())**2) / (ingroup.var() + outgroup.var())
 
-        ratios = values.groupby('Text1').agg(ratio).Delta
+        ratios = values.groupby('Text1').apply(ratio)
         return ratios.sum() / comb(len(values.Author1.unique()), 2)
 
 

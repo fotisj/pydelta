@@ -165,7 +165,7 @@ def read_directory(directory, evaluate=True):
     """
 
     ev = delta.Eval()
-    scores = pd.DataFrame(columns=["Algorithm", "Words", "Case_Sensitive", "Corpus",
+    scores = pd.DataFrame(columns=["Texts", "Algorithm", "Words", "Case_Sensitive", "Corpus",
         "Simple_Delta_Score", "F_Ratio", "Fisher_LD", "Clustering_Errors", "Errors2", "Adjusted_Rand_Index",
         "Purity", "Entropy", "Homogenity", "Completeness", "V_Measure", 
         "Adjusted_Mutual_Information"])
@@ -175,12 +175,16 @@ def read_directory(directory, evaluate=True):
     progress("\nProcessing directory {} (= corpus {})\n".format(directory, corpus))
 
 
-    def unstack():    
+    def unstack():
         colors = ["r", "g", "b", "m", "k", "Olive", "SaddleBrown", "CadetBlue", "DarkGreen", "Brown"]
         for filename in sorted(os.listdir(directory)):
             try:
                 try:
-                    alg, word_s, case_s, _ = filename.split('.')
+                    try:
+                        alg, word_s, case_s, ntext_s, _ = filename.split('.')
+                    except ValueError:
+                        ntext_s = None
+                        alg, word_s, case_s, _ = filename.split('.')
                     case_sensitive = case_s == 'case_sensitive'
                 except ValueError:
                     alg, word_s, _ = filename.split('.')
@@ -196,6 +200,7 @@ def read_directory(directory, evaluate=True):
                 progress("Reading {} ".format(filename))
                 crosstab = pd.DataFrame.from_csv(os.path.join(directory, filename))
                 progress()
+                ntexts = crosstab.index.size
                 
                 if evaluate:
                     simple_score = ev.evaluate_deltas(crosstab, verbose=False)
@@ -224,7 +229,7 @@ def read_directory(directory, evaluate=True):
                             dpi=600,
                             orientation="portrait", papertype="a4", 
                             format="pdf") 
-                    scores.loc[filename] = (alg, words, case_sensitive, corpus, simple_score, 
+                    scores.loc[filename] = (ntexts, alg, words, case_sensitive, corpus, simple_score, 
                             f_ratio, fisher_ld, errors, cluster_errors_2(clustering), 
                             adjusted_rand_index(clustering),
                             purity(clustering), 
@@ -250,7 +255,7 @@ def read_directory(directory, evaluate=True):
                 deltas["Title2"] = deltas.index.to_series().map(lambda t: t[1].split('_')[1][:-4]) 
                 progress("\n")
                 yield deltas
-            except ValueError(e):
+            except ValueError as e:
                 print("WARNING: Skipping non-matching filename {}".format(filename),e)
 
     corpus_deltas = pd.concat(unstack())
