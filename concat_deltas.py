@@ -258,7 +258,12 @@ def read_directory(directory, evaluate=True):
             except ValueError as e:
                 print("WARNING: Skipping non-matching filename {}".format(filename),e)
 
-    corpus_deltas = pd.concat(unstack())
+    if options.no_concatenation:
+        for df in unstack():
+            pass
+        corpus_deltas = pd.DataFrame()
+    else:
+        corpus_deltas = pd.concat(unstack())
     return (corpus_deltas, scores)
 
 
@@ -273,6 +278,8 @@ def main():
             help="Also concatenate all subcorpora and same them to the given file.")
     args.add_argument("-p", "--pickle", action="store_true",
             help="The raw deltas will be pickled instead of stored as csv")
+    args.add_argument("-n", "--no-concatenation", action="store_true",
+            help="Do not concatenate the results, just run the evaluation")
     args.add_argument("-c", "--case-sensitive", action="store_true", default=False, 
             help="""When reading stylo written difference tables, assume they are
                     for case-sensitive data. The default is case-insensitive.""")
@@ -285,18 +292,19 @@ def main():
 
     for directory in options.deltas:
         (deltas, scores) = read_directory(directory)
-        progress("Saving deltas for {} ...".format(directory))
-        if options.pickle:
-            deltas.to_pickle(directory + ".pickle")
-        else:
-            deltas.to_csv(directory + ".csv")
+        if not options.no_concatenation:
+            progress("Saving deltas for {} ...".format(directory))
+            if options.pickle:
+                deltas.to_pickle(directory + ".pickle")
+            else:
+                deltas.to_csv(directory + ".csv")
         progress("\n")
 
         if options.evaluate:
             progress("Saving scores for {} ...\n".format(directory))
             scores.to_csv(directory + "-scores.csv")
 
-        if options.all:
+        if options.all and not options.no_concatenation:
             if all_deltas is None:
                 all_deltas = deltas
             else:
@@ -313,7 +321,7 @@ def main():
         all_scores.to_csv("all-scores.csv")
         progress("\n")
 
-    if options.all:
+    if options.all and not options.no_concatenation:
         progress("Saving all deltas to {}".format(options.all))
         if options.pickle:
             all_deltas.to_pickle(options.all)
