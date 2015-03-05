@@ -139,7 +139,7 @@ def sweep(corpus_dir='corpus',
             # dump the scores after every alg at least
             scores.to_csv(output + "_scores.csv")
 
-if __name__ == '__main__':
+def get_argparser():
     parser = argparse.ArgumentParser(
                 description="Create a bunch of delta tables for a corpus.",
                 epilog="The script will write a file OUTPUT.csv containing the simple scores.")
@@ -170,8 +170,10 @@ if __name__ == '__main__':
                         according to this spec.
                         """)
     parser.add_argument('-m', '--randomize-method', choices=rt.randomizations, default='authorsfirst', help="Randomization method for variable number of texts")
-    
-    options = parser.parse_args()
+    return parser
+
+if __name__ == '__main__':
+    options = get_argparser().parse_args()
     if options.output is None:
         options.output = options.corpus_dir + "_deltas"
         

@@ -4,3 +4,4 @@ pandas>=0.13.1
 profig>=0.2.8
 scipy>=0.14.0
 regex>=2014.10.24
+sphinx-argparse

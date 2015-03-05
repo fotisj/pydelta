@@ -267,9 +267,7 @@ def read_directory(directory, evaluate=True):
     return (corpus_deltas, scores)
 
 
-def main():
-    global options
-
+def get_argparser():
     args = argparse.ArgumentParser(description="Convert a bunch of delta csvs to one file")
     args.add_argument("deltas", help="directories containing the delta csv files", nargs='+')
     args.add_argument("-v", "--verbose", help="be verbose", action='store_true')
@@ -285,7 +283,12 @@ def main():
                     for case-sensitive data. The default is case-insensitive.""")
     args.add_argument("-d", "--dendrograms", nargs=1,
             help="Generate dendrograms and store them in the given directory.")
-    options = args.parse_args()
+    return args
+
+def main():
+    global options
+
+    options = get_argparser().parse_args()
 
     all_deltas = None
     all_scores = None

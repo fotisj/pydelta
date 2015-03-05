@@ -44,6 +44,12 @@ const = collections.namedtuple('Constants',
                                 "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE", "CANBERRA", "BRAY_CURTIS",
                                 "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "COSINE_DELTA", "COSINE_EDER", "COSINE_BINARY", "COSINE_UNIT"])._make(range(18))
 
+def get_argparser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-O', dest='options', action='append',
+                        metavar='<key>:<value>', help='Overrides an option in the config file.' +
+                                                      '\navailable options:\n' + help_msg)
+    return parser
 
 class Config():
     """
@@ -117,10 +123,6 @@ class Config():
         allows user to override all settings using commandline arguments.
         """
         help_msg = " ".join([str(x) for x in self.cfg])
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-O', dest='options', action='append',
-                            metavar='<key>:<value>', help='Overrides an option in the config file.' +
-                                                          '\navailable options:\n' + help_msg)
         args = parser.parse_args()
         # update option values
         if args.options is not None:
