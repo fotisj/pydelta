@@ -18,6 +18,7 @@ import logging
 
 
 class FeatureGenerator(object):
+
     """
     A **feature generator** is responsible for converting a subdirectory of files into a feature matrix (that will then become a corpus). If you need to customize the feature extraction process, create a custom feature generator and pass it into your :class:`Corpus` constructor call along with its `subdir` argument.
 
@@ -29,12 +30,12 @@ class FeatureGenerator(object):
     On a feature generator passed in to :class:`Corpus`, only two methods will be called:
 
         * :meth:`__call__`, i.e. the object as a callable, to actually generate the feature vector,
-        * :attr:`metadata` to obtain metadata fields that will be included in the corresponding corpus. 
-    So, if you wish to write a completely new feature generator, you can ignore the other methods. 
+        * :attr:`metadata` to obtain metadata fields that will be included in the corresponding corpus.
+    So, if you wish to write a completely new feature generator, you can ignore the other methods.
     """
 
     def __init__(self, lower_case=False, encoding="utf-8", glob='*.txt',
-            token_pattern=re.compile(r'\b\p{L}+?\b', re.WORD)):
+                 token_pattern=re.compile(r'\b\p{L}+?\b', re.WORD)):
         """
         Creates a customized default feature generator.
 
@@ -51,8 +52,8 @@ class FeatureGenerator(object):
 
     def __repr__(self):
         return type(self).__name__ + '(' + \
-                ', '.join( key+'='+repr(value) for key, value in self.__dict__.items() if key != 'logger' ) + \
-                ')'
+            ', '.join( key+'='+repr(value) for key, value in self.__dict__.items() if key != 'logger' ) + \
+            ')'
 
     def tokenize(self, lines):
         """
@@ -60,7 +61,7 @@ class FeatureGenerator(object):
 
         This method is called by :meth:`count_tokens`. The default
         implementation will return an iterable of all tokens in the given
-        :param:`lines` that matches the :attr:`token_pattern`. 
+        :param:`lines` that matches the :attr:`token_pattern`.
 
         :param lines: Iterable of strings in which to look for tokens.
         :returns: Iterable (default implementation generator) of tokens
@@ -73,7 +74,7 @@ class FeatureGenerator(object):
         This calls :meth:`tokenize` to split the iterable `lines` into tokens. If the
         :attr:`lower_case` attribute is given, the tokens are then converted to
         lower_case. The tokens are counted, the method returns a
-        :class:`pd.Series` mapping each token to its number of occurrences. 
+        :class:`pd.Series` mapping each token to its number of occurrences.
 
         This is called by :meth:`process_file`.
 
@@ -101,7 +102,7 @@ class FeatureGenerator(object):
 
     def process_file(self, filename):
         """
-        Processes a single file to a feature vector. 
+        Processes a single file to a feature vector.
 
         The default implementation reads the file pointed to by `filename` as a
         text file, calls :meth:`count_tokens` to create token counts and
@@ -128,11 +129,18 @@ class FeatureGenerator(object):
         """
         filenames = glob.glob(os.path.join(directory, self.glob))
         if len(filenames) == 0:
-            self.logger.error("No files matching %s in %s. Feature matrix will be empty.", self.glob, directory)
+            self.logger.error(
+                "No files matching %s in %s. Feature matrix will be empty.",
+                self.glob,
+                directory)
         else:
-            self.logger.info("Reading %d files matching %s from %s", len(filenames), self.glob, directory)
+            self.logger.info(
+                "Reading %d files matching %s from %s",
+                len(filenames),
+                self.glob,
+                directory)
         data = (self.process_file(filename) for filename in filenames)
-        return { series.name : series for series in data }
+        return {series.name: series for series in data}
 
     def __call__(self, directory):
         """
@@ -141,11 +149,11 @@ class FeatureGenerator(object):
         """
         df = pd.DataFrame(self.process_directory(directory))
         return df.T
-    
+
     @property
     def metadata(self):
         """
-        Returns metadata record that describes the parameters of the 
+        Returns metadata record that describes the parameters of the
         features used for corpora created using this feature generator.
 
         :rtype: Metadata
@@ -155,12 +163,12 @@ class FeatureGenerator(object):
 
 class Corpus(pd.DataFrame):
 
-    def __init__(self, subdir=None, file=None, corpus=None, 
-            feature_generator=FeatureGenerator(),
-            document_describer=DefaultDocumentDescriber(),
-            metadata=None, **kwargs):
+    def __init__(self, subdir=None, file=None, corpus=None,
+                 feature_generator=FeatureGenerator(),
+                 document_describer=DefaultDocumentDescriber(),
+                 metadata=None, **kwargs):
         """
-        Creates a new Corpus. 
+        Creates a new Corpus.
 
         :param str subdir: Path to a subdirectory containing the (unprocessed) corpus data.
         :param str file: Path to a CSV file containing the feature vectors.
@@ -177,7 +185,7 @@ class Corpus(pd.DataFrame):
                 subdir, corpus = None, subdir
             elif os.path.isfile(subdir):
                 subdir, file = None, subdir
-        
+
         # initialize or update metadata
         if metadata is None:
             metadata = Metadata(
@@ -186,11 +194,14 @@ class Corpus(pd.DataFrame):
                 corpus=subdir if subdir else file,
                 frequencies=False)
         else:
-            metadata = Metadata(metadata) # copy it, just in case
+            metadata = Metadata(metadata)  # copy it, just in case
 
         # initialize data
         if subdir is not None:
-            logger.info("Creating corpus by reading %s using %s", subdir, feature_generator)
+            logger.info(
+                "Creating corpus by reading %s using %s",
+                subdir,
+                feature_generator)
             df = feature_generator(subdir)
             metadata.update(feature_generator)
         elif file is not None:
@@ -199,32 +210,41 @@ class Corpus(pd.DataFrame):
             try:
                 metadata = Metadata.load(file)
             except OSError as e:
-                self.logger.warning("Failed to load metadata for %s. Using defaults: %s", file, metadata, exc_info=True)
+                self.logger.warning(
+                    "Failed to load metadata for %s. Using defaults: %s",
+                    file,
+                    metadata,
+                    exc_info=True)
             # TODO can we probably use hdf5?
         elif corpus is not None:
             df = corpus
             if isinstance(corpus, Corpus):
                 metadata.update(corpus.metadata)
         else:
-            raise ValueError("Error. Only one of subdir and corpusfile can be not None")
+            raise ValueError(
+                "Error. Only one of subdir and corpusfile can be not None")
 
         metadata.update(**kwargs)
 
         if not metadata.ordered:
-            df = df.iloc[:,(-df.sum()).argsort()]
+            df = df.iloc[:, (-df.sum()).argsort()]
             metadata.ordered = True
 
         super().__init__(df.fillna(0))
         self.logger = logger
         self.metadata = metadata
-        self.document_describer = document_describer 
+        self.document_describer = document_describer
 
     def save(self, filename="corpus_words.csv"):
         """
         saves corpus to file.
         """
         self.logger.info("Saving corpus to %s ...", filename)
-        self.T.to_csv(filename, encoding="utf-8", na_rep=0, quoting=csv.QUOTE_NONNUMERIC)
+        self.T.to_csv(
+            filename,
+            encoding="utf-8",
+            na_rep=0,
+            quoting=csv.QUOTE_NONNUMERIC)
         self.metadata.save(filename)
         # TODO different formats? compression?
 
@@ -237,18 +257,23 @@ class Corpus(pd.DataFrame):
 
         :param mfwords: number of most frequent words in the new corpus.
         :returns: a new sorted corpus shortened to `mfwords`
-        """        
-        new_corpus = self / self.sum() if not self.metadata.frequencies else self
-        #slice only mfwords from total list
+        """
+        new_corpus = self / \
+            self.sum() if not self.metadata.frequencies else self
+        # slice only mfwords from total list
         if mfwords > 0:
-            return Corpus(corpus=new_corpus.iloc[:,:mfwords], 
-                    document_describer=self.document_describer, 
-                    metadata=self.metadata, words=mfwords, frequencies=True)
+            return Corpus(
+                corpus=new_corpus.iloc[
+                    :,
+                    :mfwords],
+                document_describer=self.document_describer,
+                metadata=self.metadata,
+                words=mfwords,
+                frequencies=True)
         else:
-            return Corpus(corpus=new_corpus, 
-                    document_describer=self.document_describer, 
-                    metadata=self.metadata, frequencies=True)
-
+            return Corpus(corpus=new_corpus,
+                          document_describer=self.document_describer,
+                          metadata=self.metadata, frequencies=True)
 
     def cull(self, ratio=None, threshold=None, keepna=False):
         """
@@ -277,6 +302,6 @@ class Corpus(pd.DataFrame):
         culled = self.replace(0, float('NaN')).dropna(thresh=threshold, axis=1)
         if not keepna:
             culled = culled.fillna(0)
-        return Corpus(corpus=culled, 
-                document_describer=self.document_describer,
-                metadata=self.metadata, culling=threshold)
+        return Corpus(corpus=culled,
+                      document_describer=self.document_describer,
+                      metadata=self.metadata, culling=threshold)
