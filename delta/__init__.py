@@ -14,3 +14,7 @@ __author__ = 'Fotis Jannidis, Thorsten Vitt'
 from .corpus import Corpus, FeatureGenerator
 from .deltas import registry, Normalization, DeltaFunction, \
         PDistDeltaFunction, CompositeDeltaFunction
+
+__all__ = [ Corpus, FeatureGenerator,
+           registry, Normalization,
+           DeltaFunction, PDistDeltaFunction, CompositeDeltaFunction ]
