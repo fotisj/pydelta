@@ -33,9 +33,13 @@ The script needs to be passed a corpus directory that contains utf-8 encoded tex
 The generated csv files will be written as a cross table, i.e. first row and
 first column are filenames from the corpus and the other cells contain the difference between the respective files.
 
+.. argparse::
+    :module: evaluate
+    :func: get_argparser
+    :prog: evaluate.py
 
-concatenate-deltas.py
----------------------
+concat_deltas.py
+----------------
 
 This script can read directories full of tables written by ``evaluate.py`` and
 perform three tasks:
@@ -59,6 +63,12 @@ These long-format tables can get quite large. They will be saved as CSV, but can
 - it optionally (``-e``) calculates three scores for each distance matrix: the difference of the means of the s standardized distances for same and different authors in the corpus, and two variatons of a clustering error according to a hierarchical clustering of the results
 
 - it can optionally paint an (ugly) dendrogram (``-d``) for each distance matrix.
+
+.. argparse::
+    :module: concat_deltas
+    :func: get_argparser
+    :prog: concat_deltas.py
+
 
 plot-scores.py
 --------------

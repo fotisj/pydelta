@@ -42,8 +42,14 @@ import profig
 const = collections.namedtuple('Constants',
                                ["CLASSIC_DELTA", "LINEAR_DELTA", "QUADRATIC_DELTA", "ROTATED_DELTA", "EDERS_DELTA",
                                 "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE", "CANBERRA", "BRAY_CURTIS",
-                                "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "COSINE_DELTA", "COSINE_EDER", "COSINE_BINARY", "COSINE_UNIT"])._make(range(18))
+                                "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "COSINE_DELTA", "COSINE_EDER", "COSINE_BINARY", "COSINE_UNIT", "COSINE_RANGE"])._make(range(19))
 
+def get_argparser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-O', dest='options', action='append',
+                        metavar='<key>:<value>', help='Overrides an option in the config file.' +
+                                                      '\navailable options:\n' + help_msg)
+    return parser
 
 class Config():
     """
@@ -117,10 +123,6 @@ class Config():
         allows user to override all settings using commandline arguments.
         """
         help_msg = " ".join([str(x) for x in self.cfg])
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-O', dest='options', action='append',
-                            metavar='<key>:<value>', help='Overrides an option in the config file.' +
-                                                          '\navailable options:\n' + help_msg)
         args = parser.parse_args()
         # update option values
         if args.options is not None:
@@ -148,7 +150,7 @@ class Corpus(pd.DataFrame):
     can be retrieved using :meth:`get_mfw_table`.
     """
 
-    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False, metadata=None, **kwargs):
+    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False, metadata=None, filelist=None, **kwargs):
         """
         Creates a new corpus. Exactly one of `subdir` or `file` or
         `corpus` should be present to determine the corpus content.
@@ -159,6 +161,7 @@ class Corpus(pd.DataFrame):
         :param encoding: Encoding of the files to read for ``subdir``
         :param lower_case: Whether to normalize all words to lower-case only.
         :param metadata: If present, this will initialize this object's metadata from the argument. Use this if the corpus you pass in is a plain dataframe.
+        :param filelist: List of files (w/o subdir!) to load from subdir.
 
         Additional keyword arguments will be stored as metadata.
         """
@@ -173,7 +176,7 @@ class Corpus(pd.DataFrame):
             metadata = dict(metadata) # copy it, just in ccase
         metadata.update(kwargs)
         if subdir is not None:
-            super().__init__(self.process_files(subdir, encoding, lower_case, False))
+            super().__init__(self.process_files(subdir, encoding, lower_case, False, filelist))
             metadata['ordered'] = True
         elif file is not None:
             super().__init__(pd.read_csv(file, index_col=0))
@@ -188,7 +191,7 @@ class Corpus(pd.DataFrame):
         self.metadata = metadata
 
 
-    def process_files(self, subdir, encoding, lower_case, frequencies=False):
+    def process_files(self, subdir, encoding, lower_case, frequencies=False, files=None):
         """
         Preprocessing all files ending with ``*.txt`` in corpus subdir.
         All files are tokenized.
@@ -204,7 +207,12 @@ class Corpus(pd.DataFrame):
         if not os.path.exists(subdir):
             raise Exception("The directory " + subdir + " doesn't exist. \nPlease add a directory " +
                             "with text files.\n")
-        filelist = glob.glob(subdir + os.sep + "*.txt")
+
+        if files:
+            filelist = [ os.path.join(subdir, f) for f in files ]
+        else:
+            filelist = glob.glob(os.path.join(subdir, "*.txt"))
+
         list_of_wordlists = []
         for file in filelist:
             list_of_wordlists.append(self.tokenize_file(file, encoding, lower_case, frequencies))
@@ -315,6 +323,14 @@ class Corpus(pd.DataFrame):
         z_scores = self.apply(lambda f: (f - self.mean(axis=1)) / self.std(axis=1))
         return Corpus(corpus=z_scores, metadata=self.metadata, z_scores=True)
 
+    def range_scaled(self):
+        """
+        Returns a new corpus scaled by range.
+        """
+        range = self.max(axis=1) - self.min(axis=1)
+        scaled = self.apply(lambda f: (f / range))
+        return Corpus(corpus=scaled, metadata=self.metadata, range_scaled=True)
+
     def eder_std(self):
         """
         Returns a copy of this corpus that is normalized using Eder's normalization.
@@ -410,6 +426,8 @@ class Delta(pd.DataFrame):
             super().__init__(self.delta_function(corpus.binarize(), ssd.cosine))
         elif delta_choice == const.COSINE_UNIT:
             super().__init__(self.delta_function(corpus.length_normalized(), ssd.cosine))
+        elif delta_choice == const.COSINE_RANGE:
+            super().__init__(self.delta_function(corpus.range_scaled(), ssd.cosine))
         elif delta_choice == const.LINEAR_DELTA:
             super().__init__(self.delta_function(corpus, self.linear_delta, diversities=corpus.diversities()))
         elif delta_choice == const.QUADRATIC_DELTA:
@@ -973,11 +991,13 @@ class Eval():
         def ratio(group):
             same = group.Author1 == group.Author2
             size = same.value_counts()
+            if size.index.size < 2:
+                return np.nan
             within = (group[same].Delta**2).sum() / size[True]
             without = (group[same == False].Delta**2).sum() / size[False]
             return within / without
 
-        ratios = values.groupby('Author1').agg(ratio).Delta
+        ratios = values.groupby('Author1').apply(ratio)
         return ratios.sum() / ratios.index.size
 
     def fisher_ld(self, delta):
@@ -992,7 +1012,7 @@ class Eval():
             outgroup = group[group.Author1 != group.Author2].Delta
             return ((ingroup.mean() - outgroup.mean())**2) / (ingroup.var() + outgroup.var())
 
-        ratios = values.groupby('Text1').agg(ratio).Delta
+        ratios = values.groupby('Text1').apply(ratio)
         return ratios.sum() / comb(len(values.Author1.unique()), 2)
 
 

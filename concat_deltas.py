@@ -165,7 +165,7 @@ def read_directory(directory, evaluate=True):
     """
 
     ev = delta.Eval()
-    scores = pd.DataFrame(columns=["Algorithm", "Words", "Case_Sensitive", "Corpus",
+    scores = pd.DataFrame(columns=["Texts", "Algorithm", "Words", "Case_Sensitive", "Corpus",
         "Simple_Delta_Score", "F_Ratio", "Fisher_LD", "Clustering_Errors", "Errors2", "Adjusted_Rand_Index",
         "Purity", "Entropy", "Homogenity", "Completeness", "V_Measure", 
         "Adjusted_Mutual_Information"])
@@ -175,12 +175,16 @@ def read_directory(directory, evaluate=True):
     progress("\nProcessing directory {} (= corpus {})\n".format(directory, corpus))
 
 
-    def unstack():    
+    def unstack():
         colors = ["r", "g", "b", "m", "k", "Olive", "SaddleBrown", "CadetBlue", "DarkGreen", "Brown"]
         for filename in sorted(os.listdir(directory)):
             try:
                 try:
-                    alg, word_s, case_s, _ = filename.split('.')
+                    try:
+                        alg, word_s, case_s, ntext_s, _ = filename.split('.')
+                    except ValueError:
+                        ntext_s = None
+                        alg, word_s, case_s, _ = filename.split('.')
                     case_sensitive = case_s == 'case_sensitive'
                 except ValueError:
                     alg, word_s, _ = filename.split('.')
@@ -196,6 +200,7 @@ def read_directory(directory, evaluate=True):
                 progress("Reading {} ".format(filename))
                 crosstab = pd.DataFrame.from_csv(os.path.join(directory, filename))
                 progress()
+                ntexts = crosstab.index.size
                 
                 if evaluate:
                     simple_score = ev.evaluate_deltas(crosstab, verbose=False)
@@ -224,7 +229,7 @@ def read_directory(directory, evaluate=True):
                             dpi=600,
                             orientation="portrait", papertype="a4", 
                             format="pdf") 
-                    scores.loc[filename] = (alg, words, case_sensitive, corpus, simple_score, 
+                    scores.loc[filename] = (ntexts, alg, words, case_sensitive, corpus, simple_score, 
                             f_ratio, fisher_ld, errors, cluster_errors_2(clustering), 
                             adjusted_rand_index(clustering),
                             purity(clustering), 
@@ -250,16 +255,19 @@ def read_directory(directory, evaluate=True):
                 deltas["Title2"] = deltas.index.to_series().map(lambda t: t[1].split('_')[1][:-4]) 
                 progress("\n")
                 yield deltas
-            except ValueError(e):
+            except ValueError as e:
                 print("WARNING: Skipping non-matching filename {}".format(filename),e)
 
-    corpus_deltas = pd.concat(unstack())
+    if options.no_concatenation:
+        for df in unstack():
+            pass
+        corpus_deltas = pd.DataFrame()
+    else:
+        corpus_deltas = pd.concat(unstack())
     return (corpus_deltas, scores)
 
 
-def main():
-    global options
-
+def get_argparser():
     args = argparse.ArgumentParser(description="Convert a bunch of delta csvs to one file")
     args.add_argument("deltas", help="directories containing the delta csv files", nargs='+')
     args.add_argument("-v", "--verbose", help="be verbose", action='store_true')
@@ -268,30 +276,38 @@ def main():
             help="Also concatenate all subcorpora and same them to the given file.")
     args.add_argument("-p", "--pickle", action="store_true",
             help="The raw deltas will be pickled instead of stored as csv")
+    args.add_argument("-n", "--no-concatenation", action="store_true",
+            help="Do not concatenate the results, just run the evaluation")
     args.add_argument("-c", "--case-sensitive", action="store_true", default=False, 
             help="""When reading stylo written difference tables, assume they are
                     for case-sensitive data. The default is case-insensitive.""")
     args.add_argument("-d", "--dendrograms", nargs=1,
             help="Generate dendrograms and store them in the given directory.")
-    options = args.parse_args()
+    return args
+
+def main():
+    global options
+
+    options = get_argparser().parse_args()
 
     all_deltas = None
     all_scores = None
 
     for directory in options.deltas:
         (deltas, scores) = read_directory(directory)
-        progress("Saving deltas for {} ...".format(directory))
-        if options.pickle:
-            deltas.to_pickle(directory + ".pickle")
-        else:
-            deltas.to_csv(directory + ".csv")
+        if not options.no_concatenation:
+            progress("Saving deltas for {} ...".format(directory))
+            if options.pickle:
+                deltas.to_pickle(directory + ".pickle")
+            else:
+                deltas.to_csv(directory + ".csv")
         progress("\n")
 
         if options.evaluate:
             progress("Saving scores for {} ...\n".format(directory))
             scores.to_csv(directory + "-scores.csv")
 
-        if options.all:
+        if options.all and not options.no_concatenation:
             if all_deltas is None:
                 all_deltas = deltas
             else:
@@ -308,7 +324,7 @@ def main():
         all_scores.to_csv("all-scores.csv")
         progress("\n")
 
-    if options.all:
+    if options.all and not options.no_concatenation:
         progress("Saving all deltas to {}".format(options.all))
         if options.pickle:
             all_deltas.to_pickle(options.all)
