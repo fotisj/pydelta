@@ -21,6 +21,7 @@ Contents:
 """
 
 import glob
+import fnmatch
 import regex
 import collections
 import os
@@ -150,7 +151,9 @@ class Corpus(pd.DataFrame):
     can be retrieved using :meth:`get_mfw_table`.
     """
 
-    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False, metadata=None, filelist=None, max_chars=None, **kwargs):
+    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8",
+                 lower_case=False, metadata=None, filelist=None,
+                 max_chars=None, max_chars_only=None, **kwargs):
         """
         Creates a new corpus. Exactly one of `subdir` or `file` or
         `corpus` should be present to determine the corpus content.
@@ -162,6 +165,8 @@ class Corpus(pd.DataFrame):
         :param lower_case: Whether to normalize all words to lower-case only.
         :param metadata: If present, this will initialize this object's metadata from the argument. Use this if the corpus you pass in is a plain dataframe.
         :param filelist: List of files (w/o subdir!) to load from subdir.
+        :param max_chars: if not ``None``, consider at most these many characters from the start of each text
+        :param max_chars_only: if not ``None``, only respect max_chars for files that match this glob pattern
 
         Additional keyword arguments will be stored as metadata.
         """
@@ -176,7 +181,7 @@ class Corpus(pd.DataFrame):
             metadata = dict(metadata) # copy it, just in ccase
         metadata.update(kwargs)
         if subdir is not None:
-            super().__init__(self.process_files(subdir, encoding, lower_case, False, filelist, max_chars))
+            super().__init__(self.process_files(subdir, encoding, lower_case, False, filelist, max_chars, max_chars_only))
             metadata['ordered'] = True
             if max_chars is not None:
                 metadata['max_chars'] = max_chars
@@ -194,7 +199,7 @@ class Corpus(pd.DataFrame):
 
 
     def process_files(self, subdir, encoding, lower_case, frequencies=False,
-                      files=None, max_chars=None):
+                      files=None, max_chars=None, max_chars_only=None):
         """
         Preprocessing all files ending with ``*.txt`` in corpus subdir.
         All files are tokenized.
@@ -218,9 +223,16 @@ class Corpus(pd.DataFrame):
 
         list_of_wordlists = []
         for file in filelist:
+            if max_chars is not None:
+                if max_chars_only is None:
+                    actual_limit = max_chars
+                elif fnmatch.fnmatch(file, max_chars_only):
+                    actual_limit = max_chars
+                else:
+                    actual_limit = None
             list_of_wordlists.append(
                 self.tokenize_file(file, encoding, lower_case, frequencies,
-                                   max_chars))
+                                   actual_limit))
 
         df = pd.DataFrame(list_of_wordlists).fillna(0).T
 
