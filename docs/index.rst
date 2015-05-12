@@ -6,8 +6,6 @@
 Welcome to PyDelta's documentation!
 ===================================
 
-.. include::
-   ../readme.txt
 
 
 Contents:
@@ -16,8 +14,12 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
+   readme
+   distances-normalizations
+   delta-functions
    modules
-
+   README-branch
+   refactoring-notes
 
 Indices and tables
 ==================

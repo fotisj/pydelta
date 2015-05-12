@@ -33,6 +33,7 @@ import argparse
 import pandas as pd
 import numpy as np
 from scipy import linalg
+from scipy.misc import comb
 import scipy.cluster.hierarchy as sch
 import scipy.spatial.distance as ssd
 import matplotlib.pylab as plt
@@ -41,7 +42,7 @@ import profig
 const = collections.namedtuple('Constants',
                                ["CLASSIC_DELTA", "LINEAR_DELTA", "QUADRATIC_DELTA", "ROTATED_DELTA", "EDERS_DELTA",
                                 "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE", "CANBERRA", "BRAY_CURTIS",
-                                "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "COSINE_DELTA"])._make(range(15))
+                                "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "COSINE_DELTA", "COSINE_EDER", "COSINE_BINARY", "COSINE_UNIT"])._make(range(18))
 
 
 class Config():
@@ -147,7 +148,7 @@ class Corpus(pd.DataFrame):
     can be retrieved using :meth:`get_mfw_table`.
     """
 
-    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False):
+    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False, metadata=None, **kwargs):
         """
         Creates a new corpus. Exactly one of `subdir` or `file` or
         `corpus` should be present to determine the corpus content.
@@ -157,15 +158,35 @@ class Corpus(pd.DataFrame):
         :param corpus: Corpus data. Will be passed on to Pandas' DataFrame.
         :param encoding: Encoding of the files to read for ``subdir``
         :param lower_case: Whether to normalize all words to lower-case only.
+        :param metadata: If present, this will initialize this object's metadata from the argument. Use this if the corpus you pass in is a plain dataframe.
+
+        Additional keyword arguments will be stored as metadata.
         """
+        if metadata is None:
+            metadata = dict(
+                lower_case=False,
+                ordered=False,
+                words=None,
+                corpus=subdir if subdir else file,
+                frequencies=False)
+        else:
+            metadata = dict(metadata) # copy it, just in ccase
+        metadata.update(kwargs)
         if subdir is not None:
             super().__init__(self.process_files(subdir, encoding, lower_case, False))
+            metadata['ordered'] = True
         elif file is not None:
             super().__init__(pd.read_csv(file, index_col=0))
+            # TODO metadata handling. Sidecar files?
+            # TODO can we probably use hdf5?
         elif corpus is not None:
             super().__init__(corpus)
+            if isinstance(corpus, Corpus):
+                metadata = corpus.metadata
         else:
             raise ValueError("Error. Only one of subdir and corpusfile can be not None")
+        self.metadata = metadata
+
 
     def process_files(self, subdir, encoding, lower_case, frequencies=False):
         """
@@ -192,6 +213,9 @@ class Corpus(pd.DataFrame):
         
         return df.ix[(-df.sum(axis=1)).argsort()]
 
+
+    # XXX split into reading the file, tokenizing, transformations, and
+    # building the frequency table to implement additional post-processing
     @staticmethod
     def tokenize_file(filename, encoding, lower_case, frequencies=True):
         """
@@ -232,6 +256,8 @@ class Corpus(pd.DataFrame):
         """
         print("Saving corpus to file corpus_words.csv")
         self.to_csv("corpus_words.csv", encoding="utf-8", na_rep=0, quoting=csv.QUOTE_NONNUMERIC)
+        # TODO metadata handling
+        # TODO different formats? compression?
 
     def get_mfw_table(self, mfwords):
         """
@@ -246,9 +272,9 @@ class Corpus(pd.DataFrame):
         new_corpus = self / self.sum() if self.ix[:,1].sum() > 1 else self
         #slice only mfwords from total list
         if mfwords > 0:
-            return Corpus(corpus = new_corpus[:mfwords])
+            return Corpus(corpus = new_corpus[:mfwords], metadata=self.metadata, words=mfwords, frequencies=True)
         else:
-            return Corpus(corpus = new_corpus)
+            return Corpus(corpus = new_corpus, metadata = self.metadata, frequencies=True)
         
         
 
@@ -280,8 +306,44 @@ class Corpus(pd.DataFrame):
         culled = self.replace(0, float('NaN')).dropna(thresh=threshold)
         if not keepna:
             culled = culled.fillna(0)
-        return Corpus(corpus=culled)
+        return Corpus(corpus=culled, metadata=self.metadata, culling=threshold)
 
+    def z_scores(self):
+        """
+        Returns a new corpus containing the z-scores of this corpus.
+        """
+        z_scores = self.apply(lambda f: (f - self.mean(axis=1)) / self.std(axis=1))
+        return Corpus(corpus=z_scores, metadata=self.metadata, z_scores=True)
+
+    def eder_std(self):
+        """
+        Returns a copy of this corpus that is normalized using Eder's normalization.
+        This multiplies each entry with :math:`\frac{n-n_i+1}{n}` 
+        """
+        n = self.index.size
+        ed = pd.Series(range(n, 0, -1), index=self.index) / n
+        df = self.apply(lambda f: f*ed)
+        return Corpus(corpus=df, metadata=self.metadata, eder=True)
+
+    def binarize(self):
+        """
+        Returns a copy of this corpus in which the word frequencies are
+        normalized to be either 0 (word is not present in the document) or 1.
+        """
+        df = self.copy()
+        df[df > 0] = 1
+        metadata = self.metadata
+        del metadata["frequencies"]
+        metadata["binarized"] = True
+        return Corpus(corpus=df, metadata=metadata)
+
+    def length_normalized(self):
+        """
+        Returns a copy of this corpus in which the frequency vectors
+        have been length-normalized.
+        """
+        df = self / self.apply(linalg.norm)
+        return Corpus(corpus=df, metadata=self.metadata, length_normalized=True)
 
     def stds(self):
         """
@@ -342,6 +404,12 @@ class Delta(pd.DataFrame):
             super().__init__(self.delta_function(corpus, self.classic_delta, corpus.stds(), len(corpus.index)))
         elif delta_choice == const.COSINE_DELTA:
             super().__init__(self.cosine_delta(corpus))
+        elif delta_choice == const.COSINE_EDER:
+            super().__init__(self.delta_function(corpus.z_scores().eder_std(), ssd.cosine))
+        elif delta_choice == const.COSINE_BINARY:
+            super().__init__(self.delta_function(corpus.binarize(), ssd.cosine))
+        elif delta_choice == const.COSINE_UNIT:
+            super().__init__(self.delta_function(corpus.length_normalized(), ssd.cosine))
         elif delta_choice == const.LINEAR_DELTA:
             super().__init__(self.delta_function(corpus, self.linear_delta, diversities=corpus.diversities()))
         elif delta_choice == const.QUADRATIC_DELTA:
@@ -397,7 +465,19 @@ class Delta(pd.DataFrame):
             deltas.at[i, j] = delta
             deltas.at[j, i] = delta
         return deltas.fillna(0)
-        
+
+    @staticmethod
+    def wrap_pdist(corpus, method, *args, **kwargs):
+        """
+        Wrapper around pdist that returns the same form as :method:`delta_function`.
+
+        :param corpus: the :class:`Corpus`
+        :param method: method argument to :function:`ssd.pdist`
+        """
+        y = ssd.pdist(corpus.T, method, *args, **kwargs)
+        return pd.DataFrame(ssd.squareform(y), 
+                index=corpus.columns, columns=corpus.colums)
+
     @staticmethod
     def hoover_p1(corpus):
         """
@@ -863,6 +943,59 @@ class Eval():
         zeros from the diagonal are removed.
         """
         return self._purify_delta(delta).unstack().dropna()
+
+    def delta_value_df(self, delta):
+        """
+        Returns an unstacked form of the given delta table along with additional 
+        metadata. Assumes delta is symmetric.
+
+        The dataframe returned has the columns Author1, Author2, Text1, Text2, and Delta,
+        it has an entry for every unique combination of texts
+        """
+        values = self.delta_values(delta).to_frame()
+        values.columns = pd.Index(['Delta'])
+        values['Author1'] = values.index.to_series().map(lambda t: t[0].split('_')[0])
+        values['Author2'] = values.index.to_series().map(lambda t: t[1].split('_')[0])
+        values['Text1'] = values.index.to_series().map(lambda t: t[0])
+        values['Text2'] = values.index.to_series().map(lambda t: t[1])
+        return values
+
+    def f_ratio(self, delta):
+        """
+        Calculates the (normalized) F-ratio over the distance matrix, according
+        to Heeringa et al.
+
+        Checks whether the distances within a group (i.e., texts with the same author)
+        are much smaller thant the distances between groups
+        """
+        values = self.delta_value_df(delta)
+        
+        def ratio(group):
+            same = group.Author1 == group.Author2
+            size = same.value_counts()
+            within = (group[same].Delta**2).sum() / size[True]
+            without = (group[same == False].Delta**2).sum() / size[False]
+            return within / without
+
+        ratios = values.groupby('Author1').agg(ratio).Delta
+        return ratios.sum() / ratios.index.size
+
+    def fisher_ld(self, delta):
+        """
+        cf. Heeringa et al.
+        """
+        values = self.delta_value_df(delta)
+
+        def ratio(group):
+            # group = all differences with the same Text1
+            ingroup = group[group.Author1 == group.Author2].Delta
+            outgroup = group[group.Author1 != group.Author2].Delta
+            return ((ingroup.mean() - outgroup.mean())**2) / (ingroup.var() + outgroup.var())
+
+        ratios = values.groupby('Text1').agg(ratio).Delta
+        return ratios.sum() / comb(len(values.Author1.unique()), 2)
+
+
 
     def normalize_delta(self, delta):
         """Standardizes the given delta matrix using its z-Score."""
