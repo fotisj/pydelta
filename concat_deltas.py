@@ -79,7 +79,7 @@ def cluster_errors_2(clustering):
     """
     Calculates the number of cluster errors by:
     1. calculating the total number of different authors in the set
-    2. calling sch.fcluster to generate at most that many flat clusters 
+    2. calling sch.fcluster to generate at most that many flat clusters
     3. for each of those clusters, the cluster errors are the number of authors in this cluster - 1
     4. sum of each cluster's errors = result
     """
@@ -101,10 +101,10 @@ def entropy(clustering):
     """
     Smaller entropy values suggest a better clustering.
     """
-    classes = clustering.Author.unique().size 
+    classes = clustering.Author.unique().size
     def cluster_entropy(cluster):
         class_counts = cluster.value_counts()
-        return   float((class_counts / cluster.index.size 
+        return   float((class_counts / cluster.index.size
                * np.log(class_counts / cluster.index.size)
                ).sum() * (-1)/np.log(classes))
     def weighted_cluster_entropy(cluster):
@@ -158,7 +158,7 @@ def read_directory(directory, evaluate=True):
     """
     Reads the delta crosstables in the given directory into one big dataframe.
     If evaluate is true, also performs two metrics on each delta table --
-    clustering error counting and the simple delta score. 
+    clustering error counting and the simple delta score.
 
     Returns a pair of dataframes, delta table first, scores second. If
     evaluate=False, the second return value is meaningless.
@@ -167,7 +167,7 @@ def read_directory(directory, evaluate=True):
     ev = delta.Eval()
     scores = pd.DataFrame(columns=["Texts", "Algorithm", "Words", "Case_Sensitive", "Corpus",
         "Simple_Delta_Score", "F_Ratio", "Fisher_LD", "Clustering_Errors", "Errors2", "Adjusted_Rand_Index",
-        "Purity", "Entropy", "Homogenity", "Completeness", "V_Measure", 
+        "Purity", "Entropy", "Homogenity", "Completeness", "V_Measure",
         "Adjusted_Mutual_Information"])
     scores.index.name = 'deltafile'
     corpus = corpus_name(directory)
@@ -196,12 +196,12 @@ def read_directory(directory, evaluate=True):
                         raise
 
                 words = int(word_s, 10)
-                
+
                 progress("Reading {} ".format(filename))
-                crosstab = pd.DataFrame.from_csv(os.path.join(directory, filename))
+                crosstab = pd.DataFrame.from_csv(os.path.join(directory, filename), encoding="utf-8")
                 progress()
                 ntexts = crosstab.index.size
-                
+
                 if evaluate:
                     simple_score = ev.evaluate_deltas(crosstab, verbose=False)
                     f_ratio = ev.f_ratio(crosstab)
@@ -224,22 +224,22 @@ def read_directory(directory, evaluate=True):
                         ax = plt.gca()
                         _color_coding_author_names(ax, "left")
                         plt.tight_layout()
-                        plt.savefig(os.path.join(options.dendrograms[0], 
-                            corpus + "." + filename[:-3] + "pdf"), 
+                        plt.savefig(os.path.join(options.dendrograms[0],
+                            corpus + "." + filename[:-3] + "pdf"),
                             dpi=600,
-                            orientation="portrait", papertype="a4", 
-                            format="pdf") 
-                    scores.loc[filename] = (ntexts, alg, words, case_sensitive, corpus, simple_score, 
-                            f_ratio, fisher_ld, errors, cluster_errors_2(clustering), 
+                            orientation="portrait", papertype="a4",
+                            format="pdf")
+                    scores.loc[filename] = (ntexts, alg, words, case_sensitive, corpus, simple_score,
+                            f_ratio, fisher_ld, errors, cluster_errors_2(clustering),
                             adjusted_rand_index(clustering),
-                            purity(clustering), 
+                            purity(clustering),
                             entropy(clustering),
                             homo, compl, vmeasure,
                             metrics.adjusted_mutual_info_score(clustering.AuthorID, clustering.Cluster))
                     progress()
                 else:
                     progress("...")
-                
+
                 deltas = crosstab.unstack().to_frame() # -> MultiIndex + 1 unlabeled column
                 deltas.columns.name = "Delta" # ugh, must be improvable
                 deltas.index.names = [ "File1", "File2" ]
@@ -247,12 +247,12 @@ def read_directory(directory, evaluate=True):
                 deltas["Words"] = words
                 deltas["Case_Sensitive"] = case_sensitive
                 deltas["Corpus"] = corpus
-                
+
                 # must be improvable as well
                 deltas["Author1"] = deltas.index.to_series().map(lambda t: t[0].split('_')[0])
                 deltas["Title1"] = deltas.index.to_series().map(lambda t: t[0].split('_')[1][:-4]) #strip .txt
                 deltas["Author2"] = deltas.index.to_series().map(lambda t: t[1].split('_')[0])
-                deltas["Title2"] = deltas.index.to_series().map(lambda t: t[1].split('_')[1][:-4]) 
+                deltas["Title2"] = deltas.index.to_series().map(lambda t: t[1].split('_')[1][:-4])
                 progress("\n")
                 yield deltas
             except ValueError as e:
@@ -272,13 +272,13 @@ def get_argparser():
     args.add_argument("deltas", help="directories containing the delta csv files", nargs='+')
     args.add_argument("-v", "--verbose", help="be verbose", action='store_true')
     args.add_argument("-e", "--evaluate", help="evaluate each delta matrix", action='store_true')
-    args.add_argument("-a", "--all", nargs=1, default="", 
+    args.add_argument("-a", "--all", nargs=1, default="",
             help="Also concatenate all subcorpora and same them to the given file.")
     args.add_argument("-p", "--pickle", action="store_true",
             help="The raw deltas will be pickled instead of stored as csv")
     args.add_argument("-n", "--no-concatenation", action="store_true",
             help="Do not concatenate the results, just run the evaluation")
-    args.add_argument("-c", "--case-sensitive", action="store_true", default=False, 
+    args.add_argument("-c", "--case-sensitive", action="store_true", default=False,
             help="""When reading stylo written difference tables, assume they are
                     for case-sensitive data. The default is case-insensitive.""")
     args.add_argument("-d", "--dendrograms", nargs=1,

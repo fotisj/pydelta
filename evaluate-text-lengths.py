@@ -75,7 +75,7 @@ def sweep(options):
                 options.algorithm.upper(),
                 options.words,
                 False))
-        deltas.to_csv(outf)
+        deltas.to_csv(outf, encoding="utf-8")
 
 
 def main():
