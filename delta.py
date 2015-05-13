@@ -223,13 +223,12 @@ class Corpus(pd.DataFrame):
 
         list_of_wordlists = []
         for file in filelist:
+            actual_limit = None
             if max_chars is not None:
                 if max_chars_only is None:
                     actual_limit = max_chars
                 elif fnmatch.fnmatch(file, max_chars_only):
                     actual_limit = max_chars
-                else:
-                    actual_limit = None
             list_of_wordlists.append(
                 self.tokenize_file(file, encoding, lower_case, frequencies,
                                    actual_limit))
