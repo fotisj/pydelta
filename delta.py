@@ -21,6 +21,7 @@ Contents:
 """
 
 import glob
+import fnmatch
 import regex
 import collections
 import os
@@ -136,8 +137,8 @@ class Corpus(pd.DataFrame):
     A corpus is a :class:`pandas.DataFrame` using words as lines and documents
     as columns, i.e. the data cell at the position ``corpus.at['and',
     'Foo.txt']`` contains the number of the word *and* in the
-    document *Foo.txt*: 
-    
+    document *Foo.txt*:
+
     ======  ========= ========= =========
     .       filename1 filename2 filename3
     ======  ========= ========= =========
@@ -150,7 +151,9 @@ class Corpus(pd.DataFrame):
     can be retrieved using :meth:`get_mfw_table`.
     """
 
-    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8", lower_case=False, metadata=None, filelist=None, **kwargs):
+    def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8",
+                 lower_case=False, metadata=None, filelist=None,
+                 max_chars=None, max_chars_only=None, **kwargs):
         """
         Creates a new corpus. Exactly one of `subdir` or `file` or
         `corpus` should be present to determine the corpus content.
@@ -162,6 +165,8 @@ class Corpus(pd.DataFrame):
         :param lower_case: Whether to normalize all words to lower-case only.
         :param metadata: If present, this will initialize this object's metadata from the argument. Use this if the corpus you pass in is a plain dataframe.
         :param filelist: List of files (w/o subdir!) to load from subdir.
+        :param max_chars: if not ``None``, consider at most these many characters from the start of each text
+        :param max_chars_only: if not ``None``, only respect max_chars for files that match this glob pattern
 
         Additional keyword arguments will be stored as metadata.
         """
@@ -176,8 +181,10 @@ class Corpus(pd.DataFrame):
             metadata = dict(metadata) # copy it, just in ccase
         metadata.update(kwargs)
         if subdir is not None:
-            super().__init__(self.process_files(subdir, encoding, lower_case, False, filelist))
+            super().__init__(self.process_files(subdir, encoding, lower_case, False, filelist, max_chars, max_chars_only))
             metadata['ordered'] = True
+            if max_chars is not None:
+                metadata['max_chars'] = max_chars
         elif file is not None:
             super().__init__(pd.read_csv(file, index_col=0))
             # TODO metadata handling. Sidecar files?
@@ -191,7 +198,8 @@ class Corpus(pd.DataFrame):
         self.metadata = metadata
 
 
-    def process_files(self, subdir, encoding, lower_case, frequencies=False, files=None):
+    def process_files(self, subdir, encoding, lower_case, frequencies=False,
+                      files=None, max_chars=None, max_chars_only=None):
         """
         Preprocessing all files ending with ``*.txt`` in corpus subdir.
         All files are tokenized.
@@ -215,45 +223,53 @@ class Corpus(pd.DataFrame):
 
         list_of_wordlists = []
         for file in filelist:
-            list_of_wordlists.append(self.tokenize_file(file, encoding, lower_case, frequencies))
-        
+            if max_chars is not None:
+                if max_chars_only is None:
+                    actual_limit = max_chars
+                elif fnmatch.fnmatch(file, max_chars_only):
+                    actual_limit = max_chars
+                else:
+                    actual_limit = None
+            list_of_wordlists.append(
+                self.tokenize_file(file, encoding, lower_case, frequencies,
+                                   actual_limit))
+
         df = pd.DataFrame(list_of_wordlists).fillna(0).T
-        
+
         return df.ix[(-df.sum(axis=1)).argsort()]
 
 
     # XXX split into reading the file, tokenizing, transformations, and
     # building the frequency table to implement additional post-processing
     @staticmethod
-    def tokenize_file(filename, encoding, lower_case, frequencies=True):
+    def tokenize_file(filename, encoding, lower_case, frequencies=True, max_chars=None):
         """
         tokenizes file and returns an unordered :class:`pandas.DataFrame`
         containing the words and frequencies
         standard encoding = utf-8
-        
+
         If frequencies is set to ``False``, the result will contain the number
         of occurrances of each word instead of the frequency in the text instead.
         """
         all_words = collections.defaultdict(int)
         WORD = regex.compile("\p{L}+")
-        set_limit = False  # placeholder for later changes
-        limit = 2000  # the same
         #read file, tokenize it, count words
-        read_text_length = 0
+        chars_read = 0
         #reading the config information only once because of speed
         with open(filename, "r", encoding=encoding) as filein:
             print("processing " + filename)
             for line in filein:
-                if set_limit:
-                    if read_text_length > limit:
-                        break
-                    else:
-                        read_text_length += len(line)
                 words = WORD.findall(line)
                 for w in words:
+                    if max_chars is not None:
+                        chars_read += len(w) + 1
+                        if chars_read > max_chars:
+                            break
                     if lower_case:
                         w = w.lower()
                     all_words[w] += 1
+                if max_chars is not None and chars_read > max_chars:
+                    break
         filename = os.path.basename(filename)
         wordlist = pd.Series(all_words, name=filename)
         return wordlist / wordlist.sum() if frequencies else wordlist
@@ -276,15 +292,15 @@ class Corpus(pd.DataFrame):
 
         :param mfwords: number of most frequent words in the new corpus.
         :returns: a new sorted corpus shortened to `mfwords`
-        """        
+        """
         new_corpus = self / self.sum() if self.ix[:,1].sum() > 1 else self
         #slice only mfwords from total list
         if mfwords > 0:
             return Corpus(corpus = new_corpus[:mfwords], metadata=self.metadata, words=mfwords, frequencies=True)
         else:
             return Corpus(corpus = new_corpus, metadata = self.metadata, frequencies=True)
-        
-        
+
+
 
     def cull(self, ratio=None, threshold=None, keepna=False):
         """
@@ -334,7 +350,7 @@ class Corpus(pd.DataFrame):
     def eder_std(self):
         """
         Returns a copy of this corpus that is normalized using Eder's normalization.
-        This multiplies each entry with :math:`\frac{n-n_i+1}{n}` 
+        This multiplies each entry with :math:`\frac{n-n_i+1}{n}`
         """
         n = self.index.size
         ed = pd.Series(range(n, 0, -1), index=self.index) / n
@@ -364,7 +380,7 @@ class Corpus(pd.DataFrame):
     def stds(self):
         """
         Calculates the standard deviation std for each word of the corpus
-        
+
         :returns: a :class:`pandas.Series` containing the standard deviations,
             with the words as index
         """
@@ -373,7 +389,7 @@ class Corpus(pd.DataFrame):
     def medians(self):
         """
         Calculates the median for each word of the corpus
-        
+
         :returns: a :class:`pandas.Series` containing the medians and the
            words as index
         """
@@ -446,7 +462,7 @@ class Delta(pd.DataFrame):
             super().__init__(self.delta_function(corpus, self.cosine))
         elif delta_choice == const.CANBERRA:
             super().__init__(self.delta_function(corpus, ssd.canberra))
-        elif delta_choice == const.BRAY_CURTIS: 
+        elif delta_choice == const.BRAY_CURTIS:
             super().__init__(self.delta_function(corpus, ssd.braycurtis))
         elif delta_choice == const.CHEBYSHEV:
             super().__init__(self.delta_function(corpus, ssd.chebyshev))
@@ -493,7 +509,7 @@ class Delta(pd.DataFrame):
         :param method: method argument to :function:`ssd.pdist`
         """
         y = ssd.pdist(corpus.T, method, *args, **kwargs)
-        return pd.DataFrame(ssd.squareform(y), 
+        return pd.DataFrame(ssd.squareform(y),
                 index=corpus.columns, columns=corpus.colums)
 
     @staticmethod
@@ -513,7 +529,7 @@ class Delta(pd.DataFrame):
                 zdneg = zdiff[zdiff < 0]
                 deltas.at[a, b] = (zdpos.mean() + 1)**2 - zdneg.mean()
         return deltas.fillna(0)
-            
+
     @staticmethod
     def pielstroem_p1(corpus):
         """
@@ -606,7 +622,7 @@ class Delta(pd.DataFrame):
         # (normalized by n-1), but is much faster. XXX evaluate whether it would be
         # problematic to use that instead of our own _cov_matrix
         """
-        Calculates the covariance matrix S consisting of the covariances 
+        Calculates the covariance matrix S consisting of the covariances
         :math:`\sigma_{ij}` for the words :math:`w_i, w_j` in the given comparison corpus.
 
         :param corpus: is a words x texts DataFrame representing the reference
@@ -664,10 +680,10 @@ class Delta(pd.DataFrame):
 
         :param corpus: :class:`Corpus` or :class:`pandas.DataFrame`
             (word×documents -> word frequencies) for which to calculate the
-            document deltas 
+            document deltas
         :param refcorpus: :class:`Corpus` or :class:`pandas.DataFrame`
             with the reference corpus
-        :param cov_alg: covariance algorithm choice, 
+        :param cov_alg: covariance algorithm choice,
             ``'argamon'``, ``'nonbiased'`` or a function
         :returns: a delta matrix as :class:pandas.DataFrame
         """
@@ -906,7 +922,7 @@ class Eval():
 
     def error_eval(self, l):
         """
-        trival check of a list of numbers for 'errors'. 
+        trival check of a list of numbers for 'errors'.
         An error is defined as :math:`i - (i-1)  \\not= 1`
 
         :param l: a list of numbers representing the position of the author
@@ -964,7 +980,7 @@ class Eval():
 
     def delta_value_df(self, delta):
         """
-        Returns an unstacked form of the given delta table along with additional 
+        Returns an unstacked form of the given delta table along with additional
         metadata. Assumes delta is symmetric.
 
         The dataframe returned has the columns Author1, Author2, Text1, Text2, and Delta,
@@ -987,7 +1003,7 @@ class Eval():
         are much smaller thant the distances between groups
         """
         values = self.delta_value_df(delta)
-        
+
         def ratio(group):
             same = group.Author1 == group.Author2
             size = same.value_counts()
@@ -1044,7 +1060,7 @@ class Eval():
         """
         Simple delta quality score for the given delta matrix:
         The difference between the means of the standardized differences between
-        works of different authors and works of the same author; i.e. different 
+        works of different authors and works of the same author; i.e. different
         authors are considered *score* standard deviations more different than
         equal authors.
 
