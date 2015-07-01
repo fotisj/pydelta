@@ -153,7 +153,7 @@ class Corpus(pd.DataFrame):
 
     def __init__(self, subdir=None, file=None, corpus=None, encoding="utf-8",
                  lower_case=False, metadata=None, filelist=None,
-                 max_chars=None, max_chars_only=None, **kwargs):
+                 max_chars=None, max_words=None, max_chars_only=None, **kwargs):
         """
         Creates a new corpus. Exactly one of `subdir` or `file` or
         `corpus` should be present to determine the corpus content.
@@ -181,10 +181,12 @@ class Corpus(pd.DataFrame):
             metadata = dict(metadata) # copy it, just in ccase
         metadata.update(kwargs)
         if subdir is not None:
-            super().__init__(self.process_files(subdir, encoding, lower_case, False, filelist, max_chars, max_chars_only))
+            super().__init__(self.process_files(subdir, encoding, lower_case, False, filelist, max_chars, max_words, max_chars_only))
             metadata['ordered'] = True
             if max_chars is not None:
                 metadata['max_chars'] = max_chars
+            elif max_words is not None:
+                metadata['max_words'] = max_words
         elif file is not None:
             super().__init__(pd.read_csv(file, index_col=0))
             # TODO metadata handling. Sidecar files?
@@ -199,7 +201,7 @@ class Corpus(pd.DataFrame):
 
 
     def process_files(self, subdir, encoding, lower_case, frequencies=False,
-                      files=None, max_chars=None, max_chars_only=None):
+                      files=None, max_chars=None, max_words=None, max_chars_only=None):
         """
         Preprocessing all files ending with ``*.txt`` in corpus subdir.
         All files are tokenized.
@@ -223,15 +225,15 @@ class Corpus(pd.DataFrame):
 
         list_of_wordlists = []
         for file in filelist:
-            actual_limit = None
-            if max_chars is not None:
-                if max_chars_only is None:
-                    actual_limit = max_chars
-                elif fnmatch.fnmatch(file, max_chars_only):
-                    actual_limit = max_chars
+            actual_limit_c = None
+            actual_limit_w = None
+            if max_chars is not None or max_words is not None:
+                if (max_chars_only is None) or fnmatch.fnmatch(file, max_chars_only):
+                    actual_limit_c = max_chars
+                    actual_limit_w = max_words
             list_of_wordlists.append(
                 self.tokenize_file(file, encoding, lower_case, frequencies,
-                                   actual_limit))
+                                   actual_limit_c, actual_limit_w))
 
         df = pd.DataFrame(list_of_wordlists).fillna(0).T
 
@@ -241,7 +243,7 @@ class Corpus(pd.DataFrame):
     # XXX split into reading the file, tokenizing, transformations, and
     # building the frequency table to implement additional post-processing
     @staticmethod
-    def tokenize_file(filename, encoding, lower_case, frequencies=True, max_chars=None):
+    def tokenize_file(filename, encoding, lower_case, frequencies=True, max_chars=None, max_words=None):
         """
         tokenizes file and returns an unordered :class:`pandas.DataFrame`
         containing the words and frequencies
@@ -254,6 +256,7 @@ class Corpus(pd.DataFrame):
         WORD = regex.compile("\p{L}+")
         #read file, tokenize it, count words
         chars_read = 0
+        words_read = 0
         #reading the config information only once because of speed
         with open(filename, "r", encoding=encoding) as filein:
             print("processing " + filename)
@@ -264,10 +267,16 @@ class Corpus(pd.DataFrame):
                         chars_read += len(w) + 1
                         if chars_read > max_chars:
                             break
+                    if max_words is not None:
+                        words_read += 1
+                        if words_read > max_words:
+                            break
                     if lower_case:
                         w = w.lower()
                     all_words[w] += 1
                 if max_chars is not None and chars_read > max_chars:
+                    break
+                if max_words is not None and words_read > max_words:
                     break
         filename = os.path.basename(filename)
         wordlist = pd.Series(all_words, name=filename)
