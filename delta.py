@@ -304,9 +304,10 @@ class Corpus(pd.DataFrame):
             raise Exception("Cannot reparse columns in a Corpus created by get_mfw_table()")
 
         new_column = self.tokenize_file(filename, encoding, lower_case, frequencies=False, max_chars=max_chars, max_words=max_words)
-        new_corpus = Corpus(corpus=self)
-        new_corpus[new_column.name] = new_column
-        new_corpus.fillna(0, inplace=True)
+        df = pd.DataFrame(self, copy=True)
+        df[new_column.name] = new_column
+        df.fillna(0, inplace=True)
+        new_corpus = Corpus(corpus=df.ix[(-df.sum(axis=1)).argsort()], metadata=self.metadata) # re-sort
         return new_corpus
 
     def has_relative_frequencies(self):
