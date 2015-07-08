@@ -160,7 +160,7 @@ class Corpus(pd.DataFrame):
 
         :param subdir: Path to a directory with ``*.txt`` files. See process_files
         :param file: Path to a ``*.csv`` file with the corpus data.
-        :param corpus: Corpus data. Will be passed on to Pandas' DataFrame.
+        :param corpus: Corpus data. Will be passed on to Pandas' DataFrame. If this is a Corpus itself, it is copied.
         :param encoding: Encoding of the files to read for ``subdir``
         :param lower_case: Whether to normalize all words to lower-case only.
         :param metadata: If present, this will initialize this object's metadata from the argument. Use this if the corpus you pass in is a plain dataframe.
@@ -192,7 +192,7 @@ class Corpus(pd.DataFrame):
             # TODO metadata handling. Sidecar files?
             # TODO can we probably use hdf5?
         elif corpus is not None:
-            super().__init__(corpus)
+            super().__init__(corpus, copy=isinstance(corpus, Corpus))
             if isinstance(corpus, Corpus):
                 metadata = corpus.metadata
         else:
@@ -282,6 +282,37 @@ class Corpus(pd.DataFrame):
         wordlist = pd.Series(all_words, name=filename)
         return wordlist / wordlist.sum() if frequencies else wordlist
 
+    def reparse_column(self, filename, encoding="utf-8", lower_case=False, max_chars=None, max_words=None):
+        """
+        Parses `filename` with the given options and returns a new corpus object that corresponds to the current one
+        but has the column corresponding to the given filename replaced with the newly parsed column.
+
+        Arguments:
+            - filename (str): Full path to the file to parse
+            - encoding (str): Encoding to use
+            - lower_case (bool): convert to lower case before counting tokens?
+            - max_chars (int): read at most the file's n first characters
+            - max_words (int): read at most n words
+
+        Returns:
+            a new Corpus object with absolute frequencies.
+
+        Raises:
+            Exception when current corpus uses relative frequencies
+        """
+        if self.has_relative_frequencies():
+            raise Exception("Cannot reparse columns in a Corpus created by get_mfw_table()")
+
+        new_column = self.tokenize_file(filename, encoding, lower_case, frequencies=False, max_chars=max_chars, max_words=max_words)
+        new_corpus = Corpus(corpus=self)
+        new_corpus[new_column.name] = new_column
+        new_corpus.fillna(0, inplace=True)
+        return new_corpus
+
+    def has_relative_frequencies(self):
+        """Does this corpus use relative or absolute frequencies?"""
+        return self.ix[:,1].sum() <= 1
+
     def save(self):
         """
         saves corpus to file named ``corpus_words.csv``
@@ -301,7 +332,7 @@ class Corpus(pd.DataFrame):
         :param mfwords: number of most frequent words in the new corpus.
         :returns: a new sorted corpus shortened to `mfwords`
         """
-        new_corpus = self / self.sum() if self.ix[:,1].sum() > 1 else self
+        new_corpus = self if self.has_relative_frequencies() else self / self.sum()
         #slice only mfwords from total list
         if mfwords > 0:
             return Corpus(corpus = new_corpus[:mfwords], metadata=self.metadata, words=mfwords, frequencies=True)
@@ -1176,4 +1207,3 @@ def main():
 if __name__ == '__main__':
     #compare_deltas()
     main()
-
