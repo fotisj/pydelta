@@ -1,5 +1,5 @@
-pydelta
-=======
+delta
+=====
 
 .. toctree::
    :maxdepth: 4

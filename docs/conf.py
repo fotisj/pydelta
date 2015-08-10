@@ -340,4 +340,5 @@ intersphinx_mapping = { 'http://docs.python.org/': None, 'http://pandas.pydata.o
 
 autoclass_content = "both"
 autodoc_member_order = "bysource"
+autodoc_default_flags = ["members", "undoc-members", "show-inheritance"]
 
