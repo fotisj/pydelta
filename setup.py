@@ -6,10 +6,10 @@ setup(
     name='delta',
     version='2.0.0.dev1',
     description='Stylometry toolkit',
-    author=['Thorsten Vitt <thorsten.vitt@uni-wuerzburg.de>',
-            'Fotis Jannidis <fotis.jannidis@uni-wuerzburg.de>'].join(', '),
+    author=", ".join(['Thorsten Vitt <thorsten.vitt@uni-wuerzburg.de>',
+            'Fotis Jannidis <fotis.jannidis@uni-wuerzburg.de>']),
 
-    classifiers = [
+    classifiers=[
         'Development Status :: 3 - Alpha',
         'Programming Language :: Python :: 3',
     ],
@@ -24,6 +24,6 @@ setup(
         'pandas>=0.13.1',
         'profig>=0.2.8',
         'scipy>=0.14.0',
-        'regex>=2014.10.24'
+        'regex'
     ]
 )
