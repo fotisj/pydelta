@@ -8,6 +8,7 @@ out of that.
 
 import os
 import glob
+from fnmatch import fnmatch
 import regex as re
 import pandas as pd
 import collections
@@ -51,6 +52,7 @@ class FeatureGenerator(object):
     """
 
     def __init__(self, lower_case=False, encoding="utf-8", glob='*.txt',
+                 skip=None,
                  token_pattern=re.compile(r'\b\p{L}+?\b', re.WORD),
                  max_tokens=None):
         """
@@ -61,6 +63,7 @@ class FeatureGenerator(object):
                 before counting them
             encoding (str): the encoding to use when reading files
             glob (str): the pattern inside the subdirectory to find files.
+            skip (str): don't handle files that match this pattern
             token_pattern (re.Regex): The regular expression used to identify
                 tokens. The default will find the shortest sequence of letters
                 between two word boundaries (according to the simple
@@ -70,6 +73,7 @@ class FeatureGenerator(object):
         self.lower_case = lower_case
         self.encoding = encoding
         self.glob = glob
+        self.skip = skip
         self.token_pattern = token_pattern
         self.max_tokens = max_tokens
         self.logger = logging.getLogger(__name__)
@@ -181,7 +185,9 @@ class FeatureGenerator(object):
                 len(filenames),
                 self.glob,
                 directory)
-        data = (self.process_file(filename) for filename in filenames)
+        data = (self.process_file(filename)
+                for filename in filenames
+                if self.skip is None or not(fnmatch(filename, self.skip)))
         return {series.name: series for series in data}
 
     def __call__(self, directory):
