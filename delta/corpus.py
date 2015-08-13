@@ -51,7 +51,8 @@ class FeatureGenerator(object):
     """
 
     def __init__(self, lower_case=False, encoding="utf-8", glob='*.txt',
-                 token_pattern=re.compile(r'\b\p{L}+?\b', re.WORD)):
+                 token_pattern=re.compile(r'\b\p{L}+?\b', re.WORD),
+                 max_tokens=None):
         """
         Creates a customized default feature generator.
 
@@ -64,11 +65,13 @@ class FeatureGenerator(object):
                 tokens. The default will find the shortest sequence of letters
                 between two word boundaries (according to the simple
                 word-boundary algorithm from *Unicode regular expressions*)
+            max_tokens (int): If set, stop reading each file after that many words.
         """
         self.lower_case = lower_case
         self.encoding = encoding
         self.glob = glob
         self.token_pattern = token_pattern
+        self.max_tokens = max_tokens
         self.logger = logging.getLogger(__name__)
 
     def __repr__(self):
@@ -91,8 +94,13 @@ class FeatureGenerator(object):
         Returns:
             Iterable (default implementation generator) of tokens
         """
+        count = 0
         for line in lines:
-            yield from self.token_pattern.findall(line)
+            for token in self.token_pattern.findall(line):
+                count += 1
+                yield token
+                if self.max_tokens is not None and count >= self.max_tokens:
+                    return
 
     def count_tokens(self, lines):
         """
