@@ -28,6 +28,14 @@ delta.evaluation module
     :undoc-members:
     :show-inheritance:
 
+delta.experiments module
+------------------------
+
+.. automodule:: delta.experiments
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 delta.util module
 -----------------
 

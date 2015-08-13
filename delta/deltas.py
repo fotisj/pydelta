@@ -5,7 +5,7 @@ This module contains the actual delta measures.
 Normalizations
 ==============
 
-A _normalization_ is a function that works on a :class:`Corpus` and returns a
+A *normalization* is a function that works on a :class:`Corpus` and returns a
 somewhat normalized version of that corpus. Each normalization has the
 following additional attributes:
 
@@ -13,25 +13,31 @@ following additional attributes:
 * title – an optional, human-readable name for the normalization
 
 Each normalization leaves its name in the 'normalizations' field of the corpus'
-:class:`Metadata`. 
+:class:`Metadata`.
 
-All available normalizations need to be registered to the normalization registry.
+All available normalizations need to be registered to the normalization
+registry.
 
 
 Delta Functions
 ===============
 
-A _delta function_ takes a :class:`Corpus` and creates a :class:`Distances` table from that. Each delta function has the following properties:
+A *delta function* takes a :class:`Corpus` and creates a :class:`Distances`
+table from that. Each delta function has the following properties:
 
-* descriptor – a systematic descriptor of the distance function. For simple delta functions (see below), this is simply the name. For composite distance functions, this starts with the name of a simple delta function and is followed by a list of normalizations (in order) that are applied to the corpus before applying the distance function.
+* descriptor – a systematic descriptor of the distance function. For simple
+    delta functions (see below), this is simply the name. For composite distance
+    functions, this starts with the name of a simple delta function and is followed
+    by a list of normalizations (in order) that are applied to the corpus before
+    applying the distance function.
 * name – a unique name for the distance function
 * title – an optional, human-readable name for the distance function.
+
 
 Simple Delta Functions
 ----------------------
 
-Simple delta functions are functions that 
-
+Simple delta functions are functions that
 
 """
 
@@ -53,7 +59,7 @@ class _FunctionRegistry:
     The registry of normalizations and delta functions.
 
     Usually, functions register themselves when they are created using one of the
-    base classes or decorators (see below), they can be accessed using the registry's 
+    base classes or decorators (see below), they can be accessed using the registry's
     methods :meth:`normalization` and :meth:`delta`, or using subscription or
     attribute access.
     """
@@ -72,9 +78,10 @@ class _FunctionRegistry:
 
     def add_normalization(self, f):
         """
-        Registers the normalization _f_. 
-        
-        This should be a :class:`Normalization`. 
+        Registers the normalization _f_.
+
+        Args:
+            f (Normalization): The normalization to register.
         """
         name = self.get_name(f)
         if name in self.normalizations:
@@ -84,6 +91,9 @@ class _FunctionRegistry:
     def add_delta(self, f):
         """
         Registers the given Delta function.
+
+        Args:
+            f (DeltaFunction): The delta function to register.
         """
         self.deltas[f.descriptor] = f
         if f.name != f.descriptor:
@@ -92,10 +102,13 @@ class _FunctionRegistry:
 
     def normalization(self, name):
         """
-        Returns the normalization identified by the name, or raises an :class:`IndexError` if 
+        Returns the normalization identified by the name, or raises an :class:`IndexError` if
         it has not been registered.
 
-        :param str name: The name of the normalization to retrieve.
+        Args:
+            name (str): The name of the normalization to retrieve.
+        Returns:
+            Normalization
         """
         return self.normalizations[name]
 
@@ -106,8 +119,12 @@ class _FunctionRegistry:
         been registered yet, this tries to create a
         :class:`CompositeDeltaFunction` from the descriptor.
 
-        :param str descriptor: Descriptor for the delta function to retrieve or create.
-        :param bool register: When creating a composite delta function,register it for future access.
+        Args:
+            descriptor (str): Descriptor for the delta function to retrieve or create.
+            register (bool): When creating a composite delta function,register
+                it for future access.
+        Returns:
+            DeltaFunction: The requested delta function.
         """
         if descriptor in self.deltas:
             return self.deltas[descriptor]
@@ -175,7 +192,7 @@ class Normalization:
             registry.add_normalization(self)
 
     def __call__(self, corpus, *args, **kwargs):
-        return Corpus(self.normalize(corpus, *args, **kwargs), 
+        return Corpus(self.normalize(corpus, *args, **kwargs),
                 document_describer=corpus.document_describer,
                 metadata=corpus.metadata, normalization=(self.name,))
 
@@ -191,8 +208,8 @@ def normalization(*args, **kwargs):
     Decorator that creates a :class:`Normalization` from a function or
     (callable) object. Can be used without or with keyword arguments:
 
-    :param str name: Name (identifier) for the normalization. By default, the function's name is used.
-    :param str title: Human-readable title for the normalization.
+        name (str): Name (identifier) for the normalization. By default, the function's name is used.
+        title (str): Human-readable title for the normalization.
     """
     name = kwargs['name']   if 'name' in kwargs  else None
     title = kwargs['title'] if 'title' in kwargs else None
@@ -221,11 +238,16 @@ class DeltaFunction:
         """
         Creates a custom delta function.
 
-        :param f: a distance function that calculates the difference between two feature vectors and returns a float. If passed, this will be used for the implementation.
-        :param str name: The name/id of this function. Can be inferred from _f_ or _descriptor_.
-        :param str descriptor: The descriptor to identify this function.
-        :param str title: A human-readable title for this function.
-        :param bool register: If true (default), register this delta function with the function registry on instantiation.
+        Args:
+            f (function): a distance function that calculates the difference
+                between two feature vectors and returns a float. If passed,
+                this will be used for the implementation.
+            name (str): The name/id of this function. Can be inferred from
+                `f` or `descriptor`.
+            descriptor (str): The descriptor to identify this function.
+            title (str): A human-readable title for this function.
+            register (bool): If true (default), register this delta function
+                with the function registry on instantiation.
         """
         if f is not None:
             if name is None:
@@ -260,16 +282,51 @@ class DeltaFunction:
         if self.descriptor != self.name:
             result += ' = ' + self.descriptor
         return result
-    
+
     @staticmethod
     def distance(u, v, *args, **kwargs):
-        raise NotImplementedError("You need to either override DeltaFunction and override distance or assign a function to distance")
+        """
+        Calculate a distance between two feature vectors.
+
+        This is an abstract method, you must either inherit from DeltaFunction
+        and override distance or assign a function in order to use this.
+
+        Args:
+            u, v (pandas.Series): The documents to compare.
+            *args, **kwargs: Passed through from the caller
+        Returns:
+            float: Distance between the documents.
+        Raises:
+            NotImplementedError if no implementation is provided.
+        """
+        raise NotImplementedError("You need to either override DeltaFunction"
+                                  "and override distance or assign a function"
+                                  "to distance")
 
     def register(self):
         """Registers this delta function with the global function registry."""
         registry.add_delta(self)
 
     def iterate_distance(self, corpus, *args, **kwargs):
+        """
+        Calculates the distance matrix for the given corpus.
+
+        The default implementation will iterate over all pairwise combinations
+        of the documents in the given corpus and call :meth:`distance` on each
+        pair, passing on the additional arguments.
+
+        Clients may want to use :meth:`__call__` instead, i.e. they want to call
+        this object as a function.
+
+        Args:
+            corpus (Corpus): feature matrix for which to calculate the distance
+            *args, **kwargs: further arguments for the matrix
+        Returns:
+            pandas.DataFrame: square dataframe containing pairwise distances.
+                The default implementation will return a matrix that has zeros
+                on the diagonal and the lower triangle a mirror of the upper
+                triangle.
+        """
         df = pd.DataFrame(index=corpus.index, columns=corpus.index)
         for a, b in combinations(df.index, 2):
             delta = self.distance(corpus[a], corpus[b], *args, **kwargs)
@@ -278,17 +335,35 @@ class DeltaFunction:
         return df.fillna(0)
 
     def create_result(self, df, corpus):
-        return DistanceMatrix(df, corpus.metadata, corpus=corpus, 
-                delta=self.name,
-                delta_descriptor=self.descriptor)
+        """
+        Wraps a square dataframe to a DistanceMatrix, adding appropriate
+        metadata from corpus and this delta function.
+
+        Args:
+            df (pandas.DataFrame): Distance matrix like created by :meth:`iterate_distance`
+            corpus (Corpus): source feature matrix
+        Returns:
+            DistanceMatrix: df as values, appropriate metadata
+        """
+        return DistanceMatrix(df, corpus.metadata, corpus=corpus,
+                              delta=self.name,
+                              delta_descriptor=self.descriptor)
 
     def __call__(self, corpus):
+        """
+        Calculates the distance matrix.
+
+        Args:
+            corpus (Corpus): The feature matrix that is the basis for the distance
+        Returns:
+            DistanceMatrix: Pairwise distances between the documents
+        """
         return self.create_result(self.iterate_distance(corpus), corpus)
 
 class CompositeDeltaFunction(DeltaFunction):
     """
-    A composite delta function consists of a _basis_ (which is another delta
-    function) and a list of _normalizations_. It first transforms the corpus
+    A composite delta function consists of a *basis* (which is another delta
+    function) and a list of *normalizations*. It first transforms the corpus
     via all the given normalizations in order, and then runs the basis on the
     result.
     """
@@ -296,6 +371,16 @@ class CompositeDeltaFunction(DeltaFunction):
     def __init__(self, descriptor, name=None, title=None, register=True):
         """
         Creates a new composite delta function.
+
+        Args:
+            descriptor (str): Formally defines this delta function. First the
+                name of an existing, registered distance function, then, separated
+                by ``-``, the names of normalizations to run, in order.
+            name (str): Name by which this delta function is registered, in
+                addition to the descriptor
+            title (str): human-readable title
+            register (bool): If true (the default), register this delta
+                function on creation
         """
         items = descriptor.split(sep)
         self.basis = registry.deltas[items[0]]
@@ -315,11 +400,12 @@ class PDistDeltaFunction(DeltaFunction):
     """
     def __init__(self, metric, name=None, title=None, register=True, **kwargs):
         """
-        :param str metric:  The metric that should be called via ssd.pdist
-        :param str name:    Name / Descriptor for the delta function, if None, metric is used
-        :param str title:   Human-Readable Title
-        :param bool register: If false, don't register this with the registry
-        :param kwargs:      passed on to :func:`ssd.pdist`
+        Args:
+            metric (str):  The metric that should be called via ssd.pdist
+            name (str):    Name / Descriptor for the delta function, if None, metric is used
+            title (str):   Human-Readable Title
+            register (bool): If false, don't register this with the registry
+            **kwargs:      passed on to :func:`ssd.pdist`
         """
         self.metric = metric
         self.kwargs = kwargs
@@ -331,7 +417,7 @@ class PDistDeltaFunction(DeltaFunction):
         super().__init__(descriptor=name, name=name, title=title, register=register)
 
     def __call__(self, corpus):
-        return self.create_result(pd.DataFrame(index=corpus.index, columns=corpus.index, 
+        return self.create_result(pd.DataFrame(index=corpus.index, columns=corpus.index,
                 data=ssd.squareform(ssd.pdist(corpus, self.metric, self.kwargs))), corpus)
 
 
@@ -340,7 +426,7 @@ class DistanceMatrix(pd.DataFrame):
     A distance matrix is the result of applying a :class:`DeltaFunction` to a
     :class:`Corpus`.
     """
-    
+
     def __init__(self, df, metadata, corpus=None, document_describer=None, **kwargs):
         super().__init__(df)
         self.metadata = Metadata(metadata, **kwargs)
@@ -377,7 +463,7 @@ def z_score(corpus):
 def eder_std(corpus):
     """
     Returns a copy of this corpus that is normalized using Eder's normalization.
-    This multiplies each entry with :math:`\frac{n-n_i+1}{n}` 
+    This multiplies each entry with :math:`\frac{n-n_i+1}{n}`
     """
     n = corpus.columns.size
     ed = pd.Series(range(n, 0, -1), index=corpus.columns) / n

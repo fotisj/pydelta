@@ -13,7 +13,7 @@ class Metadata(object):
     A metadata record contains information about how a particular object of the
     pyDelta universe has been constructed, or how it will be manipulated.
 
-    Metadata fields are simply attributes, and they can be used as such. 
+    Metadata fields are simply attributes, and they can be used as such.
     """
 
     def __init__(self, *args, **kwargs):
@@ -21,9 +21,9 @@ class Metadata(object):
         Create a new metadata instance. Arguments will be passed on to :meth:`update`.
 
         Examples:
-        >>> m = Metadata(lower_case=True, sorted=False)
-        >>> Metadata(m, sorted=True, words=5000)
-        Metadata(words=5000, lower_case=True, sorted=True)
+            >>> m = Metadata(lower_case=True, sorted=False)
+            >>> Metadata(m, sorted=True, words=5000)
+            Metadata(words=5000, lower_case=True, sorted=True)
         """
         self.update(*args, **kwargs)
 
@@ -34,7 +34,8 @@ class Metadata(object):
         specified list. Clients should use :meth:`update` or the constructor
         instead.
 
-        :param dict d: Dictionary to update from.
+        Args:
+            d (dict): Dictionary to update from.
         """
         if isinstance(d, dict):
             appendables = ('normalization',)
@@ -74,7 +75,7 @@ class Metadata(object):
     def metafilename(filename):
         """
         Returns an appropriate metadata filename for the given filename.
-        
+
         >>> Metadata.metafilename("foo.csv")
         'foo.csv.meta'
         >>> Metadata.metafilename("foo.csv.meta")
@@ -89,7 +90,8 @@ class Metadata(object):
         """
         Loads a metadata instance from the filename identified by the argument.
 
-        :param str filename: The name of the metadata file, or of the file to which a sidecar metadata filename exists
+        Args:
+            filename (str): The name of the metadata file, or of the file to which a sidecar metadata filename exists
         """
         metafilename = cls.metafilename(filename)
         with open(metafilename, "rt", encoding="utf-8") as f:
@@ -104,8 +106,9 @@ class Metadata(object):
         """
         Saves the metadata instance to a JSON file.
 
-        :param str filename: Name of the metadata file or the source file
-        :param **kwargs: are passed on to :func:`json.dump`
+        Args:
+            filename (str): Name of the metadata file or the source file
+            **kwargs: are passed on to :func:`json.dump`
         """
         metafilename = self.metafilename(filename)
         with open(metafilename, "wt", encoding="utf-8") as f:
@@ -113,21 +116,22 @@ class Metadata(object):
 
     def __repr__(self):
         return type(self).__name__ + '(' + \
-                ', '.join(str(key) + '=' + repr(value) 
+                ', '.join(str(key) + '=' + repr(value)
                         for key, value in self.__dict__.items()) + ')'
 
     def to_json(self, **kwargs):
         """
         Returns a JSON string containing this metadata object's contents.
 
-        :param **kwargs: Arguments passed to :func:`json.dumps`
+        Args:
+            **kwargs: Arguments passed to :func:`json.dumps`
         """
         return json.dumps(self.__dict__, **kwargs)
 
 
 class DocumentDescriber:
     """
-    DocumentDescribers are able to extract metadata from the document IDs of a corpus. 
+    DocumentDescribers are able to extract metadata from the document IDs of a corpus.
 
     The idea is that a :class:`Corpus` contains some sort of document name
     (e.g., original filenames), however, some components would be interested in
@@ -178,7 +182,7 @@ class DocumentDescriber:
         The default implementation just returns the :meth:`item_name`.
         """
         return self.item_name(document_name)
-        
+
     def label(self, document_name):
         """
         Returns a label for the document (including its group).

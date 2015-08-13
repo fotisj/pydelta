@@ -1,8 +1,9 @@
 """
-The delta.corpus module contains code for building, loading, saving, and manipulating
-the representation of a corpus. Its heart is the :class:`Corpus` class which
-represents the feature matrix. Also contained are default implementations for
-reading and tokenizing files and creating a feature vector out of that.
+The delta.corpus module contains code for building, loading, saving, and
+manipulating the representation of a corpus. Its heart is the :class:`Corpus`
+class which represents the feature matrix. Also contained are default
+implementations for reading and tokenizing files and creating a feature vector
+out of that.
 """
 
 import os
@@ -20,18 +21,33 @@ import logging
 class FeatureGenerator(object):
 
     """
-    A **feature generator** is responsible for converting a subdirectory of files into a feature matrix (that will then become a corpus). If you need to customize the feature extraction process, create a custom feature generator and pass it into your :class:`Corpus` constructor call along with its `subdir` argument.
+    A **feature generator** is responsible for converting a subdirectory of
+    files into a feature matrix (that will then become a corpus). If you need
+    to customize the feature extraction process, create a custom feature
+    generator and pass it into your :class:`Corpus` constructor call along with
+    its `subdir` argument.
 
-    The default feature generator is able to process a directory of text files, tokenize each of the text files according to a regular expression, and count each token type for each file. To customize feature extraction, you have two options:
+    The default feature generator is able to process a directory of text files,
+    tokenize each of the text files according to a regular expression, and
+    count each token type for each file. To customize feature extraction, you
+    have two options:
 
-        1. for simple customizations, just create a new FeatureGenerator and set the constructor arguments accordingly. Look in the docstring for :meth:`__init__` for details.
-        2. in more complex cases, create a subclass and override methods as you see fit.
+        1. for simple customizations, just create a new FeatureGenerator and
+           set the constructor arguments accordingly. Look in the docstring for
+           :meth:`__init__` for details.
+        2. in more complex cases, create a subclass and override methods as you
+           see fit.
 
-    On a feature generator passed in to :class:`Corpus`, only two methods will be called:
+    On a feature generator passed in to :class:`Corpus`, only two methods will
+    be called:
 
-        * :meth:`__call__`, i.e. the object as a callable, to actually generate the feature vector,
-        * :attr:`metadata` to obtain metadata fields that will be included in the corresponding corpus.
-    So, if you wish to write a completely new feature generator, you can ignore the other methods.
+        * :meth:`__call__`, i.e. the object as a callable, to actually generate
+            the feature vector,
+        * :attr:`metadata` to obtain metadata fields that will be included in
+            the corresponding corpus.
+
+    So, if you wish to write a completely new feature generator, you can ignore
+    the other methods.
     """
 
     def __init__(self, lower_case=False, encoding="utf-8", glob='*.txt',
@@ -39,10 +55,15 @@ class FeatureGenerator(object):
         """
         Creates a customized default feature generator.
 
-        :param bool lower_case: If ``True``, normalize all tokens to lower case before counting them.
-        :param str encoding: The encoding to use when reading files.
-        :param str glob: The pattern inside the subdirectory to find files.
-        :param re.pattern token_pattern: The regular expression used to identify tokens. The default will find the shortest sequence of letters between two word boundaries (according to the simple word-boundary algorithm from _Unicode regular expressions_)
+        Args:
+            lower_case (bool): if ``True``, normalize all tokens to lower case
+                before counting them
+            encoding (str): the encoding to use when reading files
+            glob (str): the pattern inside the subdirectory to find files.
+            token_pattern (re.Regex): The regular expression used to identify
+                tokens. The default will find the shortest sequence of letters
+                between two word boundaries (according to the simple
+                word-boundary algorithm from *Unicode regular expressions*)
         """
         self.lower_case = lower_case
         self.encoding = encoding
@@ -52,7 +73,8 @@ class FeatureGenerator(object):
 
     def __repr__(self):
         return type(self).__name__ + '(' + \
-            ', '.join( key+'='+repr(value) for key, value in self.__dict__.items() if key != 'logger' ) + \
+            ', '.join(key+'='+repr(value)
+                      for key, value in self.__dict__.items() if key != 'logger') + \
             ')'
 
     def tokenize(self, lines):
@@ -63,23 +85,28 @@ class FeatureGenerator(object):
         implementation will return an iterable of all tokens in the given
         :param:`lines` that matches the :attr:`token_pattern`.
 
-        :param lines: Iterable of strings in which to look for tokens.
-        :returns: Iterable (default implementation generator) of tokens
+        Args:
+            lines: Iterable of strings in which to look for tokens.
+
+        Returns:
+            Iterable (default implementation generator) of tokens
         """
         for line in lines:
             yield from self.token_pattern.findall(line)
 
     def count_tokens(self, lines):
         """
-        This calls :meth:`tokenize` to split the iterable `lines` into tokens. If the
-        :attr:`lower_case` attribute is given, the tokens are then converted to
-        lower_case. The tokens are counted, the method returns a
+        This calls :meth:`tokenize` to split the iterable `lines` into tokens.
+        If the :attr:`lower_case` attribute is given, the tokens are then
+        converted to lower_case. The tokens are counted, the method returns a
         :class:`pd.Series` mapping each token to its number of occurrences.
 
         This is called by :meth:`process_file`.
 
-        :param lines: Iterable of strings in which to look for tokens.
-        :returns: a :class:`pd.Series` mapping tokens to the number of occurrences.
+        Args:
+            lines: Iterable of strings in which to look for tokens.
+        Returns:
+            pandas.Series: maps tokens to the number of occurrences.
         """
         # FIXME method name?
         if self.lower_case:
@@ -94,9 +121,11 @@ class FeatureGenerator(object):
 
     def get_name(self, filename):
         """
-        Converts a single file name to a label for the corresponding feature vector.
+        Converts a single file name to a label for the corresponding feature
+        vector.
 
-        :rtype: str
+        Returns:
+            str: Feature vector label (filename w/o extension by default)
         """
         return os.path.basename(filename).rsplit('.', 1)[0]
 
@@ -108,9 +137,11 @@ class FeatureGenerator(object):
         text file, calls :meth:`count_tokens` to create token counts and
         :meth:`get_name` to calculate the label for the feature vector.
 
-        :param str filename: The path to the file to process
-        :returns: A :class:`pd.Series` with feature counts, its name set according to :meth:`get_name`
-        :rtype: pd.Series
+        Args:
+            filename (str): The path to the file to process
+        Returns:
+            :class:`pd.Series`: Feature counts, its name set according to
+                :meth:`get_name`
         """
         self.logger.info("Reading %s ...", filename)
         with open(filename, "rt", encoding=self.encoding) as file:
@@ -124,8 +155,11 @@ class FeatureGenerator(object):
         Iterates through the given directory and runs :meth:`process_file` for
         each file matching :attr:`glob` in there.
 
-        :param str directory: Path to the directory to process
-        :returns: a :class:`dict` mapping name to :class:`pd:Series`
+        Args:
+            directory (str): Path to the directory to process
+
+        Returns:
+            dict: mapping name to :class:`pd:Series`
         """
         filenames = glob.glob(os.path.join(directory, self.glob))
         if len(filenames) == 0:
@@ -153,10 +187,9 @@ class FeatureGenerator(object):
     @property
     def metadata(self):
         """
-        Returns metadata record that describes the parameters of the
-        features used for corpora created using this feature generator.
-
-        :rtype: Metadata
+        Returns:
+            Metadata: metadata record that describes the parameters of the
+                features used for corpora created using this feature generator.
         """
         return Metadata(features='words', lower_case=self.lower_case)
 
@@ -170,12 +203,13 @@ class Corpus(pd.DataFrame):
         """
         Creates a new Corpus.
 
-        :param str subdir: Path to a subdirectory containing the (unprocessed) corpus data.
-        :param str file: Path to a CSV file containing the feature vectors.
-        :param pd.DataFrame corpus: A dataframe or :class:`Corpus` from which to create a new corpus, as a copy.
-        :param FeatureGenerator feature_generator: A customizeable helper class that will process a `subdir` to a feature matrix, if the `subdir` argument is also given.
-        :param dict metadata: A dictionary with metadata to copy into the new corpus.
-        :param **kwargs: Additional keyword arguments will be set in the metadata record of the new corpus.
+        Args:
+            subdir (str): Path to a subdirectory containing the (unprocessed) corpus data.
+            file (str): Path to a CSV file containing the feature vectors.
+            corpus (pandas.DataFrame): A dataframe or :class:`Corpus` from which to create a new corpus, as a copy.
+            feature_generator (FeatureGenerator): A customizeable helper class that will process a `subdir` to a feature matrix, if the `subdir` argument is also given.
+            metadata (dict): A dictionary with metadata to copy into the new corpus.
+            **kwargs: Additional keyword arguments will be set in the metadata record of the new corpus.
         """
         logger = logging.getLogger(__name__)
 
@@ -237,7 +271,18 @@ class Corpus(pd.DataFrame):
 
     def save(self, filename="corpus_words.csv"):
         """
-        saves corpus to file.
+        Saves the corpus to a CSV file.
+
+        The corpus will be saved to a CSV file containing documents in the
+        columns and features in the rows, i.e. a transposed representation.
+        Document and feature labels will be saved to the first row or column,
+        respectively.
+
+        A metadata file will be saved alongside the file.
+
+
+        Args:
+            filename (str): The target file.
         """
         self.logger.info("Saving corpus to %s ...", filename)
         self.T.to_csv(
@@ -255,8 +300,13 @@ class Corpus(pd.DataFrame):
 
         This returns a new :class:`Corpus`, the data in this object is not modified.
 
-        :param mfwords: number of most frequent words in the new corpus.
-        :returns: a new sorted corpus shortened to `mfwords`
+        TODO separate methods?
+
+        Args:
+            mfwords (int): number of most frequent words in the new corpus. 0 means all words.
+
+        Returns:
+            Corpus: a new sorted corpus shortened to `mfwords`
         """
         new_corpus = self / \
             self.sum() if not self.metadata.frequencies else self
@@ -277,19 +327,23 @@ class Corpus(pd.DataFrame):
 
     def cull(self, ratio=None, threshold=None, keepna=False):
         """
-        Performs culling, i.e. returns a new corpus with all words that do not
-        appear in at least a given ratio or absolute number of documents
-        removed.
+        Removes all features that do not appear in a minimum number of
+        documents.
 
-        :param float ratio: Minimum ratio of documents a word must occur in to
-            be retained. Note that we're always rounding towards the ceiling,
-            i.e.  if the corpus contains 10 documents and ratio=1/3, a word
-            must occur in at least *4* documents
-        :param int threshold: Minimum number of documents a word must occur in
-            to be retained
-        :param bool keepna: If set to True, the missing words in the returned
-            corpus will be retained as ``nan`` instead of ``0``.
-        :rtype: :class:`Corpus`
+        Args:
+            ratio (float): Minimum ratio of documents a word must occur in to
+                be retained. Note that we're always rounding towards the
+                ceiling, i.e.  if the corpus contains 10 documents and
+                ratio=1/3, a word must occur in at least *4* documents (if this
+                is >= 1, it is interpreted as threshold)
+            threshold (int): Minimum number of documents a word must occur in
+                to be retained
+            keepna (bool): If set to True, the missing words in the returned
+                corpus will be retained as ``nan`` instead of ``0``.
+
+        Returns:
+            Corpus: A new corpus witht the culled words removed. The original
+                corpus is left unchanged.
         """
         if ratio is not None:
             if ratio > 1:
