@@ -44,9 +44,11 @@ Simple delta functions are functions that
 import logging
 logger = logging.getLogger(__name__)
 
+import numpy as np
 import pandas as pd
 import scipy.spatial.distance as ssd
 from scipy import linalg
+from scipy.misc import comb
 from itertools import combinations
 from functools import update_wrapper
 from .util import Metadata
@@ -345,7 +347,7 @@ class DeltaFunction:
         Returns:
             DistanceMatrix: df as values, appropriate metadata
         """
-        return DistanceMatrix(df, corpus.metadata, corpus=corpus,
+        return DistanceMatrix(df, metadata=corpus.metadata, corpus=corpus,
                               delta=self.name,
                               delta_descriptor=self.descriptor)
 
@@ -425,11 +427,30 @@ class DistanceMatrix(pd.DataFrame):
     """
     A distance matrix is the result of applying a :class:`DeltaFunction` to a
     :class:`Corpus`.
+
+    Args:
+        df (pandas.DataFrame): Values for the distance matrix to be created
+        copy_from (DistanceMatrix): copy metadata etc. from this distance matrix.
+            If ``df`` is a DistanceMatrix, it will be used as copy_from value
+        metadata (Metadata): Metadata record to start with
+        document_describer (DocumentDescriber): Describes the documents, i.e.,
+            labels and ground truth
+        corpus (Corpus): Try to take document describer from here
+        **kwargs: Additional metadata
     """
 
-    def __init__(self, df, metadata, corpus=None, document_describer=None, **kwargs):
+    def __init__(self, df, copy_from=None, metadata=None, corpus=None,
+                 document_describer=None, **kwargs):
         super().__init__(df)
-        self.metadata = Metadata(metadata, **kwargs)
+        if isinstance(df, DistanceMatrix) and copy_from is None:
+            copy_from = df
+        if copy_from is not None:
+            self.document_describer = copy_from.document_describer
+            self.metadata = copy_from.metadata
+            if metadata is not None:
+                self.metadata.update(metadata)
+        else:
+            self.metadata = Metadata(metadata, **kwargs)
         if document_describer is not None:
             self.document_describer = document_describer
         elif corpus is not None:
@@ -450,6 +471,135 @@ class DistanceMatrix(pd.DataFrame):
     def save(self, filename):
         self.to_csv(filename)
         self.metadata.save(filename)
+
+    def _remove_duplicates(self):
+        """
+        Returns a DistanceMatrix that has only the upper right triangle filled,
+        ie contains only the unique meaningful values.
+        """
+        return DistanceMatrix(self.where(np.triu(np.ones(self.shape),
+                                                 k=1)),
+                              copy_from=self)
+
+    def delta_values(self):
+        r"""
+        Converts the given n×n Delta matrix to a :math:`\binom{n}{2}` long
+        series of distinct delta values – i.e. duplicates from the lower
+        triangle and zeros from the diagonal are removed.
+        """
+        return self._remove_duplicates().unstack().dropna()
+
+    def delta_values_df(self):
+        """
+        Returns an unstacked form of the given delta table along with
+        additional metadata. Assumes delta is symmetric.
+
+        The dataframe returned has the columns Author1, Author2, Text1, Text2,
+        and Delta, it has an entry for every unique combination of texts
+        """
+        values = self.delta_values().to_frame()
+        values.columns = pd.Index(['Delta'])
+        values['Author1'] = values.index.to_series().map(lambda t:
+                                                         t[0].split('_')[0])
+        values['Author2'] = values.index.to_series().map(lambda t:
+                                                         t[1].split('_')[0])
+        values['Text1'] = values.index.to_series().map(lambda t: t[0])
+        values['Text2'] = values.index.to_series().map(lambda t: t[1])
+        return values
+
+    def f_ratio(self):
+        """
+        Calculates the (normalized) F-ratio over the distance matrix, according
+        to Heeringa et al.
+
+        Checks whether the distances within a group (i.e., texts with the same
+        author) are much smaller thant the distances between groups
+        """
+        values = self.delta_values_df()
+
+        def ratio(group):
+            same = group.Author1 == group.Author2
+            size = same.value_counts()
+            if size.index.size < 2:
+                return np.nan
+            within = (group[same].Delta**2).sum() / size[True]
+            without = (group[same == False].Delta**2).sum() / size[False]
+            return within / without
+
+        ratios = values.groupby('Author1').apply(ratio)
+        return ratios.sum() / ratios.index.size
+
+    def fisher_ld(self):
+        """
+        Calculates Fisher's Linear Discriminant for the distance matrix.
+
+        cf. Heeringa et al.
+        """
+        values = self.delta_values_df()
+
+        def ratio(group):
+            # group = all differences with the same Text1
+            ingroup = group[group.Author1 == group.Author2].Delta
+            outgroup = group[group.Author1 != group.Author2].Delta
+            return ((ingroup.mean() - outgroup.mean())**2) / (ingroup.var() + outgroup.var())
+
+        ratios = values.groupby('Text1').apply(ratio)
+        return ratios.sum() / comb(len(values.Author1.unique()), 2)
+
+    def z_scores(self):
+        """
+        Returns a distance matrix with the distances standardized using z-scores
+        """
+        deltas = self.delta_values()
+        return DistanceMatrix((self - deltas.mean()) / deltas.std(),
+                              metadata=self.metadata,
+                              document_describer=self.document_describer,
+                              distance_normalization='z-score')
+
+    def partition(self):
+        """
+        Splits this distance matrix into two sparse halves: the first contains
+        only the differences between documents that are in the same group
+        ('in-group'), the second only the differences between documents that
+        are in different groups.
+
+        Group associations are created according to the
+        :class:`DocumentDescriber`.
+
+        Returns:
+            (DistanceMatrix, DistanceMatrix): (in_group, out_group)
+        """
+        same = DistanceMatrix(pd.DataFrame(index=self.index,
+                                           columns=self.index),
+                              copy_from=self, subset='in-group')
+        diff = DistanceMatrix(pd.DataFrame(index=self.index,
+                                           columns=self.index),
+                              copy_from=self, subset='out-group')
+        group = self.document_describer.group_name
+        for d1, d2 in combinations(self.columns, 2):
+            if group(d1) == group(d2):
+                same.at[d1, d2] = self.at[d1, d2]
+            else:
+                diff.at[d1, d2] = self.at[d1, d2]
+        return (same, diff)
+
+    def simple_score(self):
+        """
+        Simple delta quality score for the given delta matrix:
+
+        The difference between the means of the standardized differences
+        between works of different authors and works of the same author; i.e.
+        different authors are considered *score* standard deviations more
+        different than equal authors.
+        """
+        in_group_df, out_group_df = self.z_scores().partition()
+        in_group, out_group = (in_group_df.delta_values(),
+                               out_group_df.delta_values())
+        score = out_group.mean() - in_group.mean()
+        return score
+
+
+
 
 
 ################# Now a bunch of normalizations:
