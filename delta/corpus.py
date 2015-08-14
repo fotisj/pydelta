@@ -208,6 +208,11 @@ class FeatureGenerator(object):
         return Metadata(features='words', lower_case=self.lower_case)
 
 
+class CorpusNotAbsolute(Exception):
+    def __init__(self, operation):
+        super().__init__("{} not possible: Absolute frequencies required.")
+
+
 class Corpus(pd.DataFrame):
 
     def __init__(self, subdir=None, file=None, corpus=None,
@@ -257,7 +262,7 @@ class Corpus(pd.DataFrame):
             df = pd.read_csv(file, index_col=0).T
             try:
                 metadata = Metadata.load(file)
-            except OSError as e:
+            except OSError:
                 self.logger.warning(
                     "Failed to load metadata for %s. Using defaults: %s",
                     file,
@@ -307,10 +312,17 @@ class Corpus(pd.DataFrame):
         self.metadata.save(filename)
         # TODO different formats? compression?
 
+    def is_absolute(self) -> bool:
+        """
+        Returns:
+            bool: ``True`` if this is a corpus using absolute frequencies
+        """
+        return not(self.metadata.frequencies)
+
     def get_mfw_table(self, mfwords):
         """
         Shortens the list to the given number of most frequent words and converts
-        the word counts to frequencies
+        the word counts to relative frequencies
 
         This returns a new :class:`Corpus`, the data in this object is not modified.
 
@@ -373,3 +385,36 @@ class Corpus(pd.DataFrame):
         return Corpus(corpus=culled,
                       document_describer=self.document_describer,
                       metadata=self.metadata, culling=threshold)
+
+    def reparse(self, feature_generator, subdir=None, **kwargs):
+        """
+        Parse or re-parse a set of documents with different settings.
+
+        This runs the given feature generator on the given or configured
+        subdirectory. The feature vectors returned by the feature generator
+        will replace or augment the corpus.
+
+        Args:
+            feature_generator (FeatureGenerator): Will be used for extracting
+                stuff.
+            subdir (str): If given, will be passed to the feature generator for
+                processing. Otherwise, we'll use the subdir configured with
+                this corpus.
+            **kwargs: Additional metadata for the returned corpus.
+        Returns:
+            Corpus: a new corpus with the respective columns replaced or added.
+                The current object will be left unchanged.
+        Raises:
+            CorpusNotAbsolute: if called on a corpus with relative frequencies
+        """
+        if not(self.is_absolute()):
+            raise CorpusNotAbsolute('Replacing or adding documents')
+        if subdir is None:
+            if self.metadata.corpus is not None \
+                    and os.path.isdir(self.metadata.corpus):
+                subdir = self.metadata.corpus
+        reparsed = feature_generator(subdir)
+        df = pd.DataFrame(self, copy=True)
+        for new_doc in reparsed.index:
+            df.loc[new_doc, :] = reparsed.loc[new_doc, :]
+        return Corpus(corpus=df, metadata=self.metadata, **kwargs)
