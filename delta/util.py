@@ -23,7 +23,7 @@ class Metadata(object):
         Examples:
             >>> m = Metadata(lower_case=True, sorted=False)
             >>> Metadata(m, sorted=True, words=5000)
-            Metadata(words=5000, lower_case=True, sorted=True)
+            Metadata(lower_case=True, sorted=True, words=5000)
         """
         self.update(*args, **kwargs)
 
@@ -116,8 +116,8 @@ class Metadata(object):
 
     def __repr__(self):
         return type(self).__name__ + '(' + \
-                ', '.join(str(key) + '=' + repr(value)
-                        for key, value in self.__dict__.items()) + ')'
+                ', '.join(str(key) + '=' + repr(self.__dict__[key])
+                        for key in sorted(self.__dict__.keys())) + ')'
 
     def to_json(self, **kwargs):
         """
