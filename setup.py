@@ -13,7 +13,6 @@ setup(
         'Development Status :: 3 - Alpha',
         'Programming Language :: Python :: 3',
     ],
-
     packages=['delta'],
     setup_requires=[
         'numpy'       # work around https://github.com/numpy/numpy/issues/2434
@@ -25,5 +24,6 @@ setup(
         'profig>=0.2.8',
         'scipy>=0.14.0',
         'regex'
-    ]
+    ],
+    test_suite = 'nose.collector'
 )
