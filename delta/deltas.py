@@ -599,6 +599,16 @@ class DistanceMatrix(pd.DataFrame):
         return score
 
 
+    def evaluate(self):
+        """
+        Returns:
+            pandas.Series: All scores implemented for distance matrixes
+        """
+        result = pd.Series()
+        result["F-Ratio"] = self.f_ratio()
+        result["Fisher's LD"] = self.fisher_ld()
+        result["Simple Score"] = self.simple_score()
+        return result
 
 
 
