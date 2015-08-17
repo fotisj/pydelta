@@ -41,3 +41,15 @@ class Corpus_Test:
     def parse_test(self):
         corpus = d.Corpus(testdir)
         eq_(corpus.und.sum(), 25738.0)
+
+class Cluster_Test:
+
+    def init_test(self):
+        # FIXME
+        corpus = d.Corpus(testdir).get_mfw_table(1000)
+        deltas = d.registry.cosine_delta(corpus)
+        hclust = d.Clustering(deltas)
+        fclust = hclust.fclustering()
+        print(fclust.describe())
+        print(fclust.evaluate())
+        assert fclust.data is not None
