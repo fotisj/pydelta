@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 import scipy.spatial.distance as ssd
 import scipy.cluster.hierarchy as sch
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 # from scipy import linalg
 # from scipy.misc import comb
 # from itertools import combinations
@@ -32,6 +34,7 @@ class Clustering:
         self.metadata = Metadata(distance_matrix.metadata,
                                  cluster_method=method, **kwargs)
         self.distance_matrix = distance_matrix
+        self.describer = distance_matrix.document_describer
         self.method = method
         self.linkage = self._calc_linkage()
 
@@ -59,6 +62,36 @@ class Clustering:
         flat.set_clusters(sch.fcluster(self.linkage, flat.group_count,
                                        criterion="maxclust"))
         return flat
+
+    def dendrogram(self):
+        import q
+        dendro = sch.dendrogram(self.linkage,
+                                orientation="left",
+                                labels=q/list(self.distance_matrix.index),
+                                link_color_func=lambda k: 'k')  # lines = black
+
+        # Now redo the author labels. To do so, we map a color to each author
+        # (using the describer) and then
+        ax = plt.gca()
+        labels = ax.get_ymajorticklabels()
+        groups = self.describer.groups(self.distance_matrix.index)
+        colors = mpl.rc_params()['axes.color_cycle']
+        colormap = {group: colors[idx % len(colors)]
+                    for idx, group in enumerate(groups)}
+        display_labels = []
+        for label in labels:
+            group = self.describer.group_name(label.get_text())
+            label.set_color(colormap[group])
+            display_label = self.describer.label(label.get_text())
+            label.set_text(display_label)       # doesn't really set the labels
+            display_labels.append(display_label)
+        ax.set_yticklabels(display_labels)
+
+        plt.tight_layout(2)
+        plt.show()
+        return dendro
+
+
 
 
 class FlatClustering:
