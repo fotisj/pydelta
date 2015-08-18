@@ -4,11 +4,12 @@ Contains utility classes and functions.
 """
 
 import json
+from collections.abc import Mapping
 
 class MetadataException(Exception):
     pass
 
-class Metadata(object):
+class Metadata(Mapping):
     """
     A metadata record contains information about how a particular object of the
     pyDelta universe has been constructed, or how it will be manipulated.
@@ -48,6 +49,16 @@ class Metadata(object):
             self.__dict__.update(d2)
         else:
             self.__dict__.update(d)
+
+    # maybe inherit from mappingproxy?
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __iter__(self):
+        return iter(self.__dict__)
+
+    def __len__(self):
+        return len(self.__dict__)
 
 
     def update(self, *args, **kwargs):
