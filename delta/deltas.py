@@ -449,6 +449,7 @@ class DistanceMatrix(pd.DataFrame):
             self.metadata = copy_from.metadata
             if metadata is not None:
                 self.metadata.update(metadata)
+            self.metadata.update(kwargs)
         else:
             self.metadata = Metadata(metadata, **kwargs)
         if document_describer is not None:
@@ -682,4 +683,3 @@ CompositeDeltaFunction("manhattan-sqrt", "eder_simple", "Eder's Simple")
 CompositeDeltaFunction("cosine-z_score", "cosine_delta", "Cosine Delta")
 
 # TODO hoover # rotated # pielström
-
