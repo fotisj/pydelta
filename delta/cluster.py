@@ -142,7 +142,7 @@ class Dendrogram:
 
     def _init_colormap(self):
         groups = self.describer.groups(self.documents)
-        colors = mpl.rc_params()['axes.color_cycle']
+        colors = mpl.rcParams['axes.color_cycle']
         self.colormap = {group: colors[idx % len(colors)]
                          for idx, group in enumerate(groups)}
         self.colorlist = [self.colormap[self.describer.group_name(doc)]
