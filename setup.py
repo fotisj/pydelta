@@ -21,7 +21,7 @@ setup(
         'matplotlib>=1.3.1',
         'numpy>=1.8.1',
         'pandas>=0.13.1',
-        'profig>=0.2.8',
+#        'profig>=0.2.8',
         'scipy>=0.14.0',
         'scikit-learn>=0.16.0',
         'regex'
