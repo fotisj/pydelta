@@ -219,7 +219,7 @@ class DefaultDocumentDescriber(DocumentDescriber):
         Shortens the title to a meaningful but short string.
         """
         junk = ["Ein", "Eine", "Der", "Die", "Das"]
-        title = self.item_name(document_name)
+        title = self.item_name(document_name).replace('-', ' ')
         title_parts = title.split(" ")
         #getting rid of file ending .txt
         if ".txt" in title_parts[-1]:
