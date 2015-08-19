@@ -349,7 +349,8 @@ class DeltaFunction:
         """
         return DistanceMatrix(df, metadata=corpus.metadata, corpus=corpus,
                               delta=self.name,
-                              delta_descriptor=self.descriptor)
+                              delta_descriptor=self.descriptor,
+                              delta_title=self.title)
 
     def __call__(self, corpus):
         """

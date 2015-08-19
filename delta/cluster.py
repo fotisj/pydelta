@@ -106,7 +106,7 @@ class Dendrogram:
     def __init__(self, clustering, describer=None, ax=None,
                  orientation="left", font_size=None, link_color="k",
                  title="Corpus: {corpus}",
-                 xlabel="Delta: {delta}, {words} most frequent {features}"):
+                 xlabel="Delta: {delta_title}, {words} most frequent {features}"):
 
         self.clustering = clustering
         self.linkage = clustering.linkage
