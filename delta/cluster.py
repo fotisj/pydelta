@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 # from itertools import combinations
 # from functools import update_wrapper
 from .util import Metadata
+from .deltas import DistanceMatrix
 # from .corpus import Corpus
 from sklearn import metrics
 
@@ -198,6 +199,10 @@ class FlatClustering:
     """
 
     def __init__(self, distances, clusters=None, metadata=None, **kwargs):
+        if not(isinstance(distances, DistanceMatrix)):
+            raise ValueError(
+                "Flat clustering must be initialized from a distance matrix.\n"
+                "(did you want to call Clustering.fcluster() instead?)")
         self.distances = distances
         self.metadata = Metadata(metadata if metadata is not None else
                                  distances.metadata, **kwargs)
@@ -205,8 +210,7 @@ class FlatClustering:
         if clusters is None:
             self.initialized = False
         else:
-            self.data["Clustering"] = clusters
-            self.initialized = True
+            self.set_clusters(clusters)
 
     def set_clusters(self, clusters):
         if self.initialized:
