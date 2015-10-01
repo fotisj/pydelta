@@ -45,11 +45,22 @@ const = collections.namedtuple('Constants',
                                 "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE", "CANBERRA", "BRAY_CURTIS",
                                 "CHEBYSHEV", "CORRELATION", "HOOVER_P1", "COSINE_DELTA", "COSINE_EDER", "COSINE_BINARY", "COSINE_UNIT", "COSINE_RANGE"])._make(range(19))
 
-def get_argparser():
-    parser = argparse.ArgumentParser()
+def get_argparser(cfg=None):
+    option_help = 'Available Options:\n\n'
+    for key in cfg.cfg:
+        section = cfg.cfg.section(key)
+        option_help += "{:<20}: {} ({})\n".format(key, section.comment, section.value())
+
+    parser = argparse.ArgumentParser(
+        description = 'Runs a single PyDelta experiment',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog = option_help
+    )
+    if cfg is None:
+        cfg = Config()
     parser.add_argument('-O', dest='options', action='append',
-                        metavar='<key>:<value>', help='Overrides an option in the config file.' +
-                                                      '\navailable options:\n' + help_msg)
+                        metavar='<key>:<value>', help='Overrides an option in the config file.')
+
     return parser
 
 class Config():
@@ -123,7 +134,7 @@ class Config():
         """
         allows user to override all settings using commandline arguments.
         """
-        help_msg = " ".join([str(x) for x in self.cfg])
+        parser = get_argparser(self)
         args = parser.parse_args()
         # update option values
         if args.options is not None:
