@@ -6,3 +6,6 @@ __pycache__
 refcorpus
 /delta.egg-info
 /numpy*.egg
+build
+dist
+.ipynb_checkpoints
