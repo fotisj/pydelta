@@ -20,10 +20,18 @@ delta.deltas module
     :undoc-members:
     :show-inheritance:
 
-delta.evaluation module
+delta.cluster module
+--------------------
+
+.. automodule:: delta.cluster
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+delta.util module
 -----------------------
 
-.. automodule:: delta.evaluation
+.. automodule:: delta.util
     :members:
     :undoc-members:
     :show-inheritance:
@@ -35,15 +43,6 @@ delta.experiments module
     :members:
     :undoc-members:
     :show-inheritance:
-
-delta.util module
------------------
-
-.. automodule:: delta.util
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 
 Module contents
 ---------------

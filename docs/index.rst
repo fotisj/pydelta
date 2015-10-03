@@ -14,7 +14,7 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   readme
+   README
    distances-normalizations
    delta-functions
    modules

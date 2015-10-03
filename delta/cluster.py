@@ -175,11 +175,6 @@ class Dendrogram:
         self.fig.savefig(fname, **kwargs)
 
 
-
-
-
-
-
 class FlatClustering:
     """
     A flat clustering represents a non-hierarchical clustering.

@@ -25,3 +25,19 @@ of a corpus builder one.
 
 A _method facet_ delivers a delta function that should be manipulated.
 """
+
+
+"""
+* Facet is an iterable that yields expressions
+* Expressions are functions that yield or manipulate something:
+        * CorpusBuilder – Command line for Corpus constructor?
+        * Corpus – manipulates corpus
+* Facet has:
+        * name
+        * description
+        * phase
+"""
+
+#class Facet:
+#
+#        def add_argument(argparser)
