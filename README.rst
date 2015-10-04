@@ -1,8 +1,9 @@
-Pydelta
-=======
+-------
+PyDelta
+-------
 
-pydelta is a commandline tool which implements 3 algorithms in the form 
-described by Argamon in a paper on John Burrows Delta.
+
+pydelta is a library and tool to perform stylometric analyses like authorship attribution, and to evaluate methods for that. It originated as a commandline tool which implements three algorithms in the form described by Argamon in a paper on John Burrows Delta.
 (S. Argamon, "Interpreting Burrows’s Delta: Geometric and Probabilistic 
 Foundations," Literary and linguistic computing, vol. 23, iss. 2, pp. 131-147, 2008.)
 
@@ -13,51 +14,31 @@ a reliable implementation with a nice Gui and much more features you should
 have a closer look at the great R tool 'stylo': 
 https://sites.google.com/site/computationalstylistics/
 
-Installation
-------------
 
-1. Install python 3.3 or 3.4 (newer versions of 3.x haven't been tested, older versions don't work)
-2. Install dependencies: pandas, scipy, matplotlib, profig (all on pypi).
-3. Download or checkout pydelta.py
+Installation and Requirements
+=============================
 
-(you can run ``pip install -r requirements.txt`` to get all dependencies, or in
-general: from python_dir/scripts ``pip install library_name`` where
-library_name is pandas etc.)
+PyDelta requires **Python 3.3 or newer**. It has quite a set of dependencies (NumPy, Pandas, SciPy, SciKit-Learn, …), but it comes with a setup script that installs it with its dependencies.
+
+Developers can clone the repo and run pip to install::
+
+    git clone -b next https://github.com/fotis007/pydelta
+    cd pydelta
+    pip install -e .
+
+If you only wish to use it, not to hack on it, pip can clone and install it for you::
+
+    pip install git+https://github.com/fotis007/pydelta@next
+
+(Note that the Python 3 version of pip is sometimes called ``pip3``).
 
 
-Usage of pydelta:
------------------
+Usage
+=====
 
-The first time you run the script, use::
+There is no command line script yet. Read on in the Concepts guide to get started.
 
-    pydelta.py -O files.ini:True
-
-Thus you create a configuration file (pydelta.ini) which allows you to set most
-parameters of the script without changing the script.
-
-Normal use:
-
-Put the text files, you want to analyze, into a subdirectory called 'corpus'
-under the directory this script is living in. The filenames for the corpus
-should have the format authorname_title.txt. The script assumes that the name
-has the format surname, firstname but should survive other delimiter.
-
-Start the script with::
-
-    ./delta.py
-
-on windows (assuming python.exe is in your path)::
-
-    python delta.py
-
-You can always use commandline parameters to override default settings
-/ settings in the pydelta.ini::
-
-    ./delta.py -O figure.title:"German Novelists around 1800" -O stat.mfwords:2500
-
-(setting a title and the amount of most frequent words used for delta). Use
-``pydelta -h`` for more information or look into the ini-file to find
-explanations of all parameters.
+----
 
 Thanks go to
 

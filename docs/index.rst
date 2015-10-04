@@ -15,11 +15,8 @@ Contents:
    :maxdepth: 2
 
    README
-   distances-normalizations
-   delta-functions
-   modules
-   README-branch
-   refactoring-notes
+   concept
+   delta
 
 Indices and tables
 ==================

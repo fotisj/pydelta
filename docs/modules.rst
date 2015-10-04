@@ -5,4 +5,3 @@ Modules
    :maxdepth: 4
 
    delta
-   setup

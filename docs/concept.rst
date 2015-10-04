@@ -1,3 +1,8 @@
+--------
+Concepts
+--------
+
+
 pydelta is a library and tool to perform stylometric analyses like authorship attribution, and to evaluate methods for that. This document gives an overview of the concepts and data structures of this tool, read the API documentation for details.
 
 Steps of an Experiment
@@ -70,3 +75,5 @@ The latter is created from a *descriptor* which consists of the distance functio
 
 Running Multiple Experiments
 ============================
+
+TODO
