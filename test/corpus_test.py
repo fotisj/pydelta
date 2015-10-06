@@ -53,3 +53,9 @@ class Cluster_Test:
         print(fclust.describe())
         print(fclust.evaluate())
         assert fclust.data is not None
+
+class Table_Describer_Test:
+
+    def md_test(self):
+        corpus = d.Corpus(testdir, document_describer=d.util.TableDocumentDescriber(testdir + '.csv', 'Author', 'Title'))
+        assert corpus.document_describer.group_name(corpus.index[-1]) == 'Raabe'

@@ -5,6 +5,7 @@ Contains utility classes and functions.
 
 import json
 from collections.abc import Mapping
+import pandas as pd
 
 class MetadataException(Exception):
     pass
@@ -232,3 +233,53 @@ class DefaultDocumentDescriber(DocumentDescriber):
             return t[0:24] + '…'
         else:
             return t
+
+class TableDocumentDescriber(DocumentDescriber):
+    """
+    A document decriber that takes groups and item labels from an external
+    table.
+    """
+
+    def __init__(self, table, group_col, name_col, dialect='excel', **kwargs):
+        """
+        Args:
+            table (str or pandas.DataFrame):
+                A table with metadata that describes the documents of the
+                corpus, either a :class:`pandas.DataFrame` or path or IO to a
+                CSV file. The tables index (or first column for CSV files)
+                contains the document ids that are returned by the
+                :class:`FeatureGenerator`. The columns (or first row) contains
+                column labels.
+            group_col (str):
+                Name of the column in the table that contains the names of the
+                groups. Will be used, e.g., for determining the ground truth
+                for cluster evaluation, and for coloring the dendrograms.
+            name_col (str):
+                Name of the column in the table that contains the names of the
+                individual items.
+            dialect (str or :class:`csv.Dialect`):
+                CSV dialect to use for reading the file.
+            **kwargs:
+                Passed on to :func:`pandas.read_table`.
+        Raises:
+            ValueError: when arguments inconsistent
+        See:
+            pandas.read_table
+        """
+        if isinstance(table, pd.DataFrame):
+            self.table = table
+        else:
+            self.table = pd.read_table(table, header=0, index_col=0, dialect=dialect, **kwargs)
+        self.group_col = group_col
+        self.name_col = name_col
+
+        if not(group_col in self.table.columns):
+            raise ValueError('Given group column {} is not in the table: {}'.format(group_col, self.table.columns))
+        if not(name_col in self.table.columns):
+            raise ValueError('Given name column {} is not in the table: {}'.format(name_col, self.table.columns))
+
+    def group_name(self, document_name):
+        return self.table.at[document_name, self.group_col]
+
+    def item_name(self, document_name):
+        return self.table.at[document_name, self.item_name]
