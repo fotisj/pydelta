@@ -418,3 +418,32 @@ class Corpus(pd.DataFrame):
         for new_doc in reparsed.index:
             df.loc[new_doc, :] = reparsed.loc[new_doc, :]
         return Corpus(corpus=df, metadata=self.metadata, **kwargs)
+
+    def tokens(self) -> pd.Series:
+        """Number tokens by text"""
+        if self.is_absolute():
+            return self.sum(axis=1)
+        else:
+            raise CorpusNotAbsolute('Calculation on absolute numbers')
+
+    def types(self) -> pd.Series:
+        """Number of different features by text"""
+        if self.is_absolute():
+            return self.replace(0, float('NaN')).count(axis=1)
+        else:
+            raise CorpusNotAbsolute('Calculation on absolute numbers')
+
+    def ttr(self) -> float:
+        """
+        Type/token ratio for the whole corpus.
+
+        See also:
+            https://en.wikipedia.org/wiki/Lexical_density
+        """
+        return self.types().sum() / self.tokens().sum()
+
+    def ttr_by_text(self) -> pd.Series:
+        """
+        Type/token ratio for each text.
+        """
+        return self.types() / self.tokens()
