@@ -704,6 +704,7 @@ def sqrt(corpus):
 
 PDistDeltaFunction("cityblock", "manhattan", title="Manhattan Distance", scale=True)
 PDistDeltaFunction("euclidean")
+PDistDeltaFunction("sqeuclidean", title="Squared Euclidean Distance")
 PDistDeltaFunction("cosine")
 PDistDeltaFunction("canberra")
 PDistDeltaFunction("braycurtis", title="Bray-Curtis Distance")
@@ -711,7 +712,7 @@ PDistDeltaFunction("correlation")
 PDistDeltaFunction("chebyshev")
 
 CompositeDeltaFunction("manhattan-z_score", "burrows", "Burrows' Delta")
-CompositeDeltaFunction("euclidean-z_score", "quadratic", "Quadratic Delta")
+CompositeDeltaFunction("sqeuclidean-z_score", "quadratic", "Quadratic Delta")
 CompositeDeltaFunction("manhattan-z_score-eder_std", "eder", "Eder's Delta")
 CompositeDeltaFunction("manhattan-sqrt", "eder_simple", "Eder's Simple")
 CompositeDeltaFunction("cosine-z_score", "cosine_delta", "Cosine Delta")
