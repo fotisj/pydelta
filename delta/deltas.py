@@ -331,9 +331,9 @@ class DeltaFunction:
         """
         df = pd.DataFrame(index=corpus.index, columns=corpus.index)
         for a, b in combinations(df.index, 2):
-            delta = self.distance(corpus[a], corpus[b], *args, **kwargs)
-            df[a, b] = delta
-            df[b, a] = delta
+            delta = self.distance(corpus.loc[a,:], corpus.loc[b,:], *args, **kwargs)
+            df.at[a, b] = delta
+            df.at[b, a] = delta
         return df.fillna(0)
 
     def create_result(self, df, corpus):
@@ -362,6 +362,35 @@ class DeltaFunction:
             DistanceMatrix: Pairwise distances between the documents
         """
         return self.create_result(self.iterate_distance(corpus), corpus)
+
+class _LinearDelta(DeltaFunction):
+
+    @staticmethod
+    def diversity(values):
+        """
+        calculates the spread or diversity (wikipedia) of a laplace distribution of values
+        see Argamon's Interpreting Burrow's Delta p. 137 and
+        http://en.wikipedia.org/wiki/Laplace_distribution
+        couldn't find a ready-made solution in the python libraries
+
+        :param values: a pd.Series of values
+        """
+        return (values - values.median()).abs().sum() / values.size
+
+    @staticmethod
+    def distance(u, v, *args, diversities=None):
+        dist = ((u - v).abs() / diversities).sum()
+        logger.debug("%s - %s = %g", u.name, v.name, dist)
+        return dist
+
+    def __call__(self, corpus):
+        diversities = corpus.apply(_LinearDelta.diversity)
+        matrix = self.iterate_distance(corpus, diversities=diversities)
+        logger.debug("Iterate_distance wurschtelte diese Matrix: %s", matrix)
+        return self.create_result(matrix, corpus)
+
+
+_LinearDelta(descriptor="linear", name="Linear Delta")
 
 class CompositeDeltaFunction(DeltaFunction):
     """
@@ -401,7 +430,7 @@ class PDistDeltaFunction(DeltaFunction):
     """
     Wraps one of the metrics implemented by :func:`ssd.pdist` as a delta function.
     """
-    def __init__(self, metric, name=None, title=None, register=True, **kwargs):
+    def __init__(self, metric, name=None, title=None, register=True, scale=False, **kwargs):
         """
         Args:
             metric (str):  The metric that should be called via ssd.pdist
@@ -416,12 +445,17 @@ class PDistDeltaFunction(DeltaFunction):
             name = metric
         if title is None:
             title = name.title() + " Distance"
+        self.scale = scale
 
         super().__init__(descriptor=name, name=name, title=title, register=register)
 
     def __call__(self, corpus):
-        return self.create_result(pd.DataFrame(index=corpus.index, columns=corpus.index,
-                data=ssd.squareform(ssd.pdist(corpus, self.metric, self.kwargs))), corpus)
+        df = pd.DataFrame(index=corpus.index, columns=corpus.index,
+                          data=ssd.squareform(ssd.pdist(corpus, self.metric,
+                                                        self.kwargs)))
+        if self.scale:
+            df = df / corpus.columns.size
+        return self.create_result(df, corpus)
 
 
 class DistanceMatrix(pd.DataFrame):
@@ -668,7 +702,7 @@ def sqrt(corpus):
 
 ################ Here come the deltas
 
-PDistDeltaFunction("cityblock", "manhattan", title="Manhattan Distance")
+PDistDeltaFunction("cityblock", "manhattan", title="Manhattan Distance", scale=True)
 PDistDeltaFunction("euclidean")
 PDistDeltaFunction("cosine")
 PDistDeltaFunction("canberra")
@@ -677,7 +711,6 @@ PDistDeltaFunction("correlation")
 PDistDeltaFunction("chebyshev")
 
 CompositeDeltaFunction("manhattan-z_score", "burrows", "Burrows' Delta")
-CompositeDeltaFunction("manhattan-diversity_scaled", "linear", "Linear Delta")
 CompositeDeltaFunction("euclidean-z_score", "quadratic", "Quadratic Delta")
 CompositeDeltaFunction("manhattan-z_score-eder_std", "eder", "Eder's Delta")
 CompositeDeltaFunction("manhattan-sqrt", "eder_simple", "Eder's Simple")
