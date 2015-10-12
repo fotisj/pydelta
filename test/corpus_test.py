@@ -42,6 +42,13 @@ class Corpus_Test:
         corpus = d.Corpus(testdir)
         eq_(corpus.und.sum(), 25738.0)
 
+    def mfw_test(self):
+        corpus = d.Corpus(testdir)
+        rel_corpus = corpus.get_mfw_table(0)
+        eq_(rel_corpus.sum(axis=1).sum(), 9)
+
+
+
 class Cluster_Test:
 
     def init_test(self):

@@ -334,8 +334,8 @@ class Corpus(pd.DataFrame):
         Returns:
             Corpus: a new sorted corpus shortened to `mfwords`
         """
-        new_corpus = self / \
-            self.sum() if not self.metadata.frequencies else self
+        new_corpus = self.div(self.sum(axis=1), axis=0) \
+            if not self.metadata.frequencies else self
         # slice only mfwords from total list
         if mfwords > 0:
             return Corpus(
