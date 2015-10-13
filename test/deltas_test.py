@@ -1,6 +1,6 @@
 import delta as d
 import os
-from nose.tools import eq_
+# from nose.tools import eq_
 from math import log10, pow
 
 testdir = None
@@ -16,12 +16,14 @@ def setup_module():
         'corpus3')
     c1000 = d.Corpus(testdir).get_mfw_table(1000)
 
+
 def feq_(result, expected, msg=None, threshold=None):
     if threshold is None:
         threshold = pow(10, log10(expected)-2)
     if msg is None:
         msg = "{} != {}".format(result, expected)
     assert abs(expected - result) < threshold, msg
+
 
 class Delta_Test:
 
@@ -30,13 +32,13 @@ class Delta_Test:
         sample = distances.at['Fontane,-Theodor_Der-Stechlin',
                               'Fontane,-Theodor_Effi-Briest']
         feq_(sample, expected_distance,
-            "{} Stechlin/Effi distance is {} instead of {}!".format(
-                function.name, sample, expected_distance))
+             "{} Stechlin/Effi distance is {} instead of {}!".format(
+                 function.name, sample, expected_distance))
 
         if expected_score is not None:
             feq_(expected_score, distances.simple_score(),
-                "{} simple score is {} instead of expected {}!".format(
-                    function.name, distances.simple_score(), expected_score))
+                 "{} simple score is {} instead of expected {}!".format(
+                     function.name, distances.simple_score(), expected_score))
 
     def burrows_test(self):
         self.check_function(d.registry.burrows, 0.7538867972199293)

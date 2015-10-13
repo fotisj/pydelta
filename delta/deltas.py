@@ -380,13 +380,11 @@ class _LinearDelta(DeltaFunction):
     @staticmethod
     def distance(u, v, *args, diversities=None):
         dist = ((u - v).abs() / diversities).sum()
-        logger.debug("%s - %s = %g", u.name, v.name, dist)
         return dist
 
     def __call__(self, corpus):
         diversities = corpus.apply(_LinearDelta.diversity)
         matrix = self.iterate_distance(corpus, diversities=diversities)
-        logger.debug("Iterate_distance wurschtelte diese Matrix: %s", matrix)
         return self.create_result(matrix, corpus)
 
 
