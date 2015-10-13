@@ -202,9 +202,8 @@ class FlatClustering:
         self.metadata = Metadata(metadata if metadata is not None else
                                  distances.metadata, **kwargs)
         self.data, self.group_count = self._init_data()
-        if clusters is None:
-            self.initialized = False
-        else:
+        self.initialized = False
+        if clusters is not None:
             self.set_clusters(clusters)
 
     def set_clusters(self, clusters):
@@ -330,3 +329,19 @@ class FlatClustering:
             .format(len(clusters), len(self.data.index), self.group_count)
         result += pformat(clusters, compact=True) + '\n'
         return result
+
+try:
+    from sklearn.cluster import KMedoids
+
+    class KMedoidsClustering(FlatClustering):
+
+        def __init__(self, distances, n_clusters=None, metadata=None, **kwargs):
+            super().__init__(distances, metadata, **kwargs)
+            if n_clusters is None:
+                n_clusters = self.group_count
+            model = KMedoids(n_clusters=n_clusters, **kwargs)
+            self.set_clusters(model.fit_predict(distances))
+
+except ImportError:
+    logger.log(logging.ERROR, "KMedoids clustering not available.\n" \
+               "You need a patched scikit-learn, see README.txt", exc_info=1)
