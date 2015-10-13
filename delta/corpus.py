@@ -263,11 +263,11 @@ class Corpus(pd.DataFrame):
             try:
                 metadata = Metadata.load(file)
             except OSError:
-                self.logger.warning(
+                logger.warning(
                     "Failed to load metadata for %s. Using defaults: %s",
                     file,
                     metadata,
-                    exc_info=True)
+                    exc_info=False)
             # TODO can we probably use hdf5?
         elif corpus is not None:
             df = corpus
