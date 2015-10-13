@@ -388,7 +388,39 @@ class _LinearDelta(DeltaFunction):
         return self.create_result(matrix, corpus)
 
 
+class PreprocessingDeltaFunction(DeltaFunction):
+
+    def __init__(self, distance_function, prep_function, descriptor=None,
+                 name=None, title=None, register=True):
+        super().__init__(f=distance_function, descriptor=descriptor, name=name,
+                         title=title, register=register)
+        self.prep_function = prep_function
+
+    @staticmethod
+    def prep_function(corpus):
+        return dict()
+
+    def __call__(self, corpus):
+        kwargs = self.prep_function(corpus)
+        logger.info("Preprocessor delivered %s", kwargs)
+        matrix = self.iterate_distance(corpus, **kwargs)
+        return self.create_result(matrix, corpus)
+
 _LinearDelta(descriptor="linear", name="Linear Delta")
+
+def _prep_linear(corpus):
+    return { 'diversities': corpus.apply(_LinearDelta.diversity) }
+
+PreprocessingDeltaFunction(_LinearDelta.distance, _prep_linear, descriptor="linear2")
+
+def _classic_delta(a, b, stds, n):
+    """
+    Burrow's Classic Delta, from pydelta 0.1
+    """
+    return ((a - b).abs() / stds).sum() / n
+def _prep_classic_delta(corpus):
+    return { 'stds': corpus.std(), 'n': corpus.columns.size }
+PreprocessingDeltaFunction(_classic_delta, _prep_classic_delta, 'burrows2')
 
 class CompositeDeltaFunction(DeltaFunction):
     """
