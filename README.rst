@@ -24,7 +24,10 @@ Developers can clone the repo and run pip to install::
 
     git clone -b next https://github.com/fotis007/pydelta
     cd pydelta
-    pip install -e .
+    pip install -r requirements.txt
+
+This will also install a version of scikit-learn that features
+k-Medoids-Clustering which is not in the official version yet.
 
 If you only wish to use it, not to hack on it, pip can clone and install it for you::
 
