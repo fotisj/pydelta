@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 # from functools import update_wrapper
 from .util import Metadata
 from .deltas import DistanceMatrix
-# from .corpus import Corpus
+from .corpus import Corpus
 from sklearn import metrics
 
 
@@ -194,9 +194,17 @@ class FlatClustering:
     """
 
     def __init__(self, distances, clusters=None, metadata=None, **kwargs):
-        if not(isinstance(distances, DistanceMatrix)):
+        if isinstance(distances, DistanceMatrix):
+            self.distances = distances
+            self.document_describer = self.distances.document_describer
+            self.documents = self.distances.index
+        elif isinstance(distances, Corpus):
+            self.distances = None
+            self.document_describer = distances.document_describer
+            self.documents = distances.index
+        else:
             raise ValueError(
-                "Flat clustering must be initialized from a distance matrix.\n"
+                "Flat clustering must be initialized from a distance matrix or a corpus.\n"
                 "(did you want to call Clustering.fcluster() instead?)")
         self.distances = distances
         self.metadata = Metadata(metadata if metadata is not None else
@@ -280,6 +288,7 @@ class FlatClustering:
         Calculates the Adjusted Rand Index for the given flat clustering
         http://scikit-learn.org/stable/modules/generated/sklearn.metrics.adjusted_rand_score.html#sklearn.metrics.adjusted_rand_score
         """
+        logger.debug("Calculating ARI for %s", self.data)
         return metrics.adjusted_rand_score(self.data.GroupID,
                                            self.data.Cluster)
 
