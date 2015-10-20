@@ -14,7 +14,7 @@ import pandas as pd
 import collections
 import csv
 from math import ceil
-from .util import Metadata, DocumentDescriber, DefaultDocumentDescriber
+from delta.util import Metadata, DocumentDescriber, DefaultDocumentDescriber
 
 import logging
 
@@ -208,9 +208,14 @@ class FeatureGenerator(object):
         return Metadata(features='words', lower_case=self.lower_case)
 
 
-class CorpusNotAbsolute(Exception):
+class CorpusNotComplete(ValueError):
+    def __init__(self, msg="Corpus not complete anymore"):
+        super().__init__(msg)
+
+
+class CorpusNotAbsolute(CorpusNotComplete):
     def __init__(self, operation):
-        super().__init__("{} not possible: Absolute frequencies required.")
+        super().__init__("{} not possible: Absolute frequencies required.".format(operation))
 
 
 class Corpus(pd.DataFrame):
@@ -245,6 +250,7 @@ class Corpus(pd.DataFrame):
                 ordered=False,
                 words=None,
                 corpus=subdir if subdir else file,
+                complete=True,
                 frequencies=False)
         else:
             metadata = Metadata(metadata)  # copy it, just in case
@@ -319,37 +325,58 @@ class Corpus(pd.DataFrame):
         """
         return not(self.metadata.frequencies)
 
+    def is_complete(self) -> bool:
+        """
+        A corpus is complete as long as it contains the absolute frequencies of
+        all features of all documents. Many operations like calculating the
+        relative frequencies require a complete corpus. Once a corpus has lost
+        its completeness, it is not possible to restore it.
+        """
+        return self.metadata.complete
+
     def get_mfw_table(self, mfwords):
         """
         Shortens the list to the given number of most frequent words and converts
-        the word counts to relative frequencies
+        the word counts to relative frequencies.
 
         This returns a new :class:`Corpus`, the data in this object is not modified.
-
-        TODO separate methods?
 
         Args:
             mfwords (int): number of most frequent words in the new corpus. 0 means all words.
 
+        See also:
+            :meth:`Corpus.top_n`, :meth:`Corpus.relative_frequencies`
+
         Returns:
             Corpus: a new sorted corpus shortened to `mfwords`
         """
-        new_corpus = self.div(self.sum(axis=1), axis=0) \
-            if not self.metadata.frequencies else self
-        # slice only mfwords from total list
         if mfwords > 0:
-            return Corpus(
-                corpus=new_corpus.iloc[
-                    :,
-                    :mfwords],
-                document_describer=self.document_describer,
-                metadata=self.metadata,
-                words=mfwords,
-                frequencies=True)
+            return self.relative_frequencies().top_n(mfwords)
         else:
-            return Corpus(corpus=new_corpus,
-                          document_describer=self.document_describer,
-                          metadata=self.metadata, frequencies=True)
+            return self.relative_frequencies()
+
+
+    def top_n(self, mfwords):
+        return Corpus(
+            corpus=self.iloc[:, :mfwords],
+            document_describer=self.document_describer,
+            metadata=self.metadata,
+            complete=False,
+            words=mfwords)
+
+    def relative_frequencies(self):
+        if self.metadata.frequencies:
+            return self
+        elif not(self.is_complete()):
+            raise CorpusNotComplete()
+        else:
+            new_corpus = self.div(self.sum(axis=1), axis=0)
+            return Corpus(
+                corpus=new_corpus,
+                document_describer=self.document_describer,
+                metadata = self.metadata,
+                complete=False,
+                frequencies=True)
 
     def cull(self, ratio=None, threshold=None, keepna=False):
         """
@@ -382,7 +409,7 @@ class Corpus(pd.DataFrame):
         culled = self.replace(0, float('NaN')).dropna(thresh=threshold, axis=1)
         if not keepna:
             culled = culled.fillna(0)
-        return Corpus(corpus=culled,
+        return Corpus(corpus=culled, complete=False,
                       document_describer=self.document_describer,
                       metadata=self.metadata, culling=threshold)
 
