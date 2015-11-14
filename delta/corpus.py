@@ -19,6 +19,9 @@ from delta.util import Metadata, DocumentDescriber, DefaultDocumentDescriber
 import logging
 
 
+LETTERS_PATTERN = re.compile(r'\p{L}+')
+WORD_PATTERN = re.compile(r"\b(\p{L}[\p{L}'’]*?|[\p{L}'’]*?\p{L})\b", re.WORD)
+
 class FeatureGenerator(object):
 
     """
@@ -53,7 +56,7 @@ class FeatureGenerator(object):
 
     def __init__(self, lower_case=False, encoding="utf-8", glob='*.txt',
                  skip=None,
-                 token_pattern=re.compile(r'\b\p{L}+?\b', re.WORD),
+                 token_pattern=LETTERS_PATTERN,
                  max_tokens=None):
         """
         Creates a customized default feature generator.
@@ -65,9 +68,11 @@ class FeatureGenerator(object):
             glob (str): the pattern inside the subdirectory to find files.
             skip (str): don't handle files that match this pattern
             token_pattern (re.Regex): The regular expression used to identify
-                tokens. The default will find the shortest sequence of letters
-                between two word boundaries (according to the simple
-                word-boundary algorithm from *Unicode regular expressions*)
+                tokens. The default, LETTERS_PATTERN, will simply find sequences
+                of unicode letters. WORD_PATTERN will find the shortest sequence
+                of letters and apostrophes between two word boundaries
+                (according to the simple word-boundary algorithm from *Unicode
+                regular expressions*) that contains at least one letter.
             max_tokens (int): If set, stop reading each file after that many words.
         """
         self.lower_case = lower_case
@@ -100,9 +105,9 @@ class FeatureGenerator(object):
         """
         count = 0
         for line in lines:
-            for token in self.token_pattern.findall(line):
+            for match in self.token_pattern.finditer(line):
                 count += 1
-                yield token
+                yield match.group(0)
                 if self.max_tokens is not None and count >= self.max_tokens:
                     return
 

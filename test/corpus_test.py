@@ -22,6 +22,16 @@ class FeatureGenerator_Test:
         assert list(self.gen.tokenize(["This is a", "simple test"])) \
             == ["This", "is", "a", "simple", "test"]
 
+    def test_tokenize_letters(self):
+        fg1 = d.FeatureGenerator(token_pattern=d.LETTERS_PATTERN)
+        assert list(fg1.tokenize(["I don't like mondays."])) \
+            == ["I", "don", "t", "like", "mondays"]
+
+    def test_tokenize_words(self):
+        fg1 = d.FeatureGenerator(token_pattern=d.WORD_PATTERN)
+        assert list(fg1.tokenize(["I don't like mondays."])) \
+            == ["I", "don't", "like", "mondays"]
+
     def test_count_tokens(self):
         result = self.gen.count_tokens(
             ["this is a test", "testing this generator"])
