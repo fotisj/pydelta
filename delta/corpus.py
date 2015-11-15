@@ -383,6 +383,15 @@ class Corpus(pd.DataFrame):
                 complete=False,
                 frequencies=True)
 
+    def z_scores(self):
+        df = (self - self.mean()) / self.std()
+        return Corpus(corpus=df,
+                        document_describer=self.document_describer,
+                        metadata=self.metadata,
+                        z_scores=True,
+                        complete=False,
+                        frequencies=True)
+
     def cull(self, ratio=None, threshold=None, keepna=False):
         """
         Removes all features that do not appear in a minimum number of
