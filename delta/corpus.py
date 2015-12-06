@@ -362,12 +362,81 @@ class Corpus(pd.DataFrame):
 
 
     def top_n(self, mfwords):
+        """
+        Returns a new `Corpus` that contains the top n features.
+
+        Args:
+            mfwords (int): Number of most frequent items in the new corpus.
+
+        Returns:
+            Corpus: a new corpus shortened to `mfwords`
+        """
         return Corpus(
             corpus=self.iloc[:, :mfwords],
             document_describer=self.document_describer,
             metadata=self.metadata,
             complete=False,
             words=mfwords)
+
+    def save_wordlist(self, filename, **kwargs):
+        """
+        Saves the current word list to a text file.
+
+        Args:
+            filename (str): Path to the file to save
+            kwargs: Additional arguments to pass to :func:`open`
+        """
+        with open(filename, 'w', **kwargs) as out:
+            out.write("# One word per line. Empty lines or "
+                      "lines starting with # are ignored.\n\n")
+            for word in self.columns:
+                out.write(word + '\n')
+
+    def _load_wordlist(self, filename, **kwargs):
+        """
+        Loads the given word list.
+
+        Args:
+            filename (str): Name of file to load
+            kwargs: Additional arguments for `open`
+
+        Yields:
+            Features from the given file
+        """
+        ENTRY = re.compile('\s*([^#]+)')
+        with open(filename, 'r', **kwargs) as f:
+            for line in f:
+                match = ENTRY.match(line)
+                if match:
+                    feature = match.group(1).strip()
+                    if feature:
+                        yield feature
+
+    def filter_wordlist(self, filename, **kwargs):
+        """
+        Returns a new corpus that contains the features from the given file.
+
+        This method will read the list of words from the given file and then
+        return a new corpus that uses the features listed in the file, in the
+        order they are in the file.
+
+        Args:
+            filename (str):
+                Path to the file to load. Each line contains one feature.
+                Leading and trailing whitespace, lines starting with ``#``, and
+                empty lines are ignored.
+
+        Returns:
+            New corpus with seelected features.
+        """
+        words = list(self._load_wordlist(filename, **kwargs))
+        return Corpus(
+            corpus=self.loc[:, words],
+            document_describer=self.document_describer,
+            metadata=self.metadata,
+            complete=False,
+            wordlist=filename)
+
 
     def relative_frequencies(self):
         if self.metadata.frequencies:
