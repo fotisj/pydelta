@@ -299,6 +299,22 @@ class Corpus(pd.DataFrame):
         self.metadata = metadata
         self.document_describer = document_describer
 
+
+    def new_data(self, data, **metadata):
+        """
+        Wraps the given `DataFrame` with metadata from this corpus object.
+
+        Args:
+            data (pandas.DataFrame): Raw data that is derived by, e.g., pandas filter operations
+            **metadata: Metadata fields that should be changed / modified
+        """
+        return Corpus(corpus=data,
+                      feature_generator=self.feature_generator,
+                      document_describer=self.document_describer,
+                      metadata=Metadata(self.metadata, **metadata))
+
+
+
     def save(self, filename="corpus_words.csv"):
         """
         Saves the corpus to a CSV file.
@@ -430,10 +446,8 @@ class Corpus(pd.DataFrame):
             New corpus with seelected features.
         """
         words = list(self._load_wordlist(filename, **kwargs))
-        return Corpus(
+        return self.new_data(
             corpus=self.loc[:, words],
-            document_describer=self.document_describer,
-            metadata=self.metadata,
             complete=False,
             wordlist=filename)
 
