@@ -321,6 +321,7 @@ class Corpus(pd.DataFrame):
         self.logger = logger
         self.metadata = metadata
         self.document_describer = document_describer
+        self.feature_generator = feature_generator
 
 
     def new_data(self, data, **metadata):
@@ -469,10 +470,19 @@ class Corpus(pd.DataFrame):
             New corpus with seelected features.
         """
         words = list(self._load_wordlist(filename, **kwargs))
-        return self.new_data(
-            corpus=self.loc[:, words],
-            complete=False,
-            wordlist=filename)
+        return self.filter_features(words, wordlist=filename)
+
+    def filter_features(self, features, **metadata):
+        """
+        Returns a new corpus that contains only the given features.
+
+        Args:
+            features (Iterable):
+                The features to select. If its in a file, use filter_wordlist
+        """
+        return self.new_data(self.loc[:, features],
+                             complete=False,
+                             **metadata)
 
 
     def relative_frequencies(self):

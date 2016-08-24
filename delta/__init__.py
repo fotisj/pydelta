@@ -15,7 +15,8 @@ from .corpus import Corpus, FeatureGenerator, LETTERS_PATTERN, WORD_PATTERN
 from .deltas import registry, Normalization, DeltaFunction, \
         PDistDeltaFunction, CompositeDeltaFunction
 from .cluster import Clustering
+from .features import get_rfe_features
 
 __all__ = [ Corpus, FeatureGenerator, LETTERS_PATTERN, WORD_PATTERN,
            registry, Normalization,
-           DeltaFunction, PDistDeltaFunction, CompositeDeltaFunction, Clustering ]
+           DeltaFunction, PDistDeltaFunction, CompositeDeltaFunction, Clustering, get_rfe_features ]
