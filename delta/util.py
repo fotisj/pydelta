@@ -6,6 +6,7 @@ Contains utility classes and functions.
 import json
 from collections.abc import Mapping
 import pandas as pd
+import itertools
 
 class MetadataException(Exception):
     pass
@@ -283,3 +284,37 @@ class TableDocumentDescriber(DocumentDescriber):
 
     def item_name(self, document_name):
         return self.table.at[document_name, self.item_name]
+
+
+def ngrams(iterable, n=2, sep=None):
+    """
+    Transforms an iterable into an iterable of ngrams.
+
+    Args:
+       iterable: Input data
+       n (int): Size of each ngram
+       sep (str): Separator string for the ngrams
+
+    Yields:
+       if sep is None, this yields n-tuples of the iterable. If sep is a
+       string, it is used to join the tuples
+
+    Example:
+        >>> list(ngrams('This is a test'.split(), n=2, sep=' '))
+        ['This is', 'is a', 'a test']
+    """
+    if n == 1:
+        return iterable
+
+    # Multiplicate input iterable and advance iterable n by n tokens
+    ts = itertools.tee(iterable, n)
+    for i, t in enumerate(ts[1:]):
+        for _ in range(i + 1):
+            next(t, None)
+
+    tuples = zip(*ts)
+
+    if sep is None:
+        return tuples
+    else:
+        return map(sep.join, tuples)

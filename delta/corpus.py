@@ -14,7 +14,7 @@ import pandas as pd
 import collections
 import csv
 from math import ceil
-from delta.util import Metadata, DocumentDescriber, DefaultDocumentDescriber
+from delta.util import Metadata, DocumentDescriber, DefaultDocumentDescriber, ngrams
 
 import logging
 
@@ -57,7 +57,8 @@ class FeatureGenerator(object):
     def __init__(self, lower_case=False, encoding="utf-8", glob='*.txt',
                  skip=None,
                  token_pattern=LETTERS_PATTERN,
-                 max_tokens=None):
+                 max_tokens=None,
+                 ngrams=None):
         """
         Creates a customized default feature generator.
 
@@ -74,6 +75,7 @@ class FeatureGenerator(object):
                 (according to the simple word-boundary algorithm from *Unicode
                 regular expressions*) that contains at least one letter.
             max_tokens (int): If set, stop reading each file after that many words.
+            ngrams (int): Count token ngrams instead of single tokens
         """
         self.lower_case = lower_case
         self.encoding = encoding
@@ -81,6 +83,7 @@ class FeatureGenerator(object):
         self.skip = skip
         self.token_pattern = token_pattern
         self.max_tokens = max_tokens
+        self.ngrams = ngrams
         self.logger = logging.getLogger(__name__)
 
     def __repr__(self):
@@ -95,7 +98,9 @@ class FeatureGenerator(object):
 
         This method is called by :meth:`count_tokens`. The default
         implementation will return an iterable of all tokens in the given
-        :param:`lines` that matches the :attr:`token_pattern`.
+        :param:`lines` that matches the :attr:`token_pattern`. The result
+        of this method can further be postprocessed by
+        :meth:`postprocess_tokens`.
 
         Args:
             lines: Iterable of strings in which to look for tokens.
@@ -111,6 +116,29 @@ class FeatureGenerator(object):
                 if self.max_tokens is not None and count >= self.max_tokens:
                     return
 
+    def postprocess_tokens(self, tokens):
+        """
+        Postprocesses the tokens according to the options provided when
+        creating the feature generator..
+
+        Currently respects `lower_case` and `ngrams`. This is called by
+        count_tokens after tokenizing.
+
+        Args:
+            tokens: iterable of tokens as returned by :meth:`tokenize`
+
+        Returns:
+            iterable of postprocessed tokens
+        """
+        if self.lower_case:
+            tokens = (token.lower() for token in tokens)
+
+        if self.ngrams:
+            tokens = ngrams(tokens, n=self.ngrams, sep=" ")
+
+        return tokens
+
+
     def count_tokens(self, lines):
         """
         This calls :meth:`tokenize` to split the iterable `lines` into tokens.
@@ -125,12 +153,7 @@ class FeatureGenerator(object):
         Returns:
             pandas.Series: maps tokens to the number of occurrences.
         """
-        # FIXME method name?
-        if self.lower_case:
-            tokens = (token.lower() for token in self.tokenize(lines))
-        else:
-            tokens = self.tokenize(lines)
-
+        tokens = self.postprocess_tokens(self.tokenize(lines))
         count = collections.defaultdict(int)
         for token in tokens:
             count[token] += 1
