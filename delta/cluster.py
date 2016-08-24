@@ -143,11 +143,10 @@ class Dendrogram:
 
     def _init_colormap(self):
         groups = self.describer.groups(self.documents)
-        colors = mpl.rcParams['axes.color_cycle']
-        self.colormap = {group: colors[idx % len(colors)]
-                         for idx, group in enumerate(groups)}
+        props = mpl.rcParams['axes.prop_cycle']
+        self.colormap = {x: y['color'] for x,y in zip(groups, props())}
         self.colorlist = [self.colormap[self.describer.group_name(doc)]
-                          for doc in self.documents]
+                        for doc in self.documents]
         return self.colormap
 
     def _relabel_axis(self):
