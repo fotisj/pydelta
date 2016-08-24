@@ -29,6 +29,7 @@ import itertools
 from datetime import datetime
 from math import ceil
 import argparse
+import enum
 
 import pandas as pd
 import numpy as np
@@ -38,11 +39,12 @@ import scipy.spatial.distance as ssd
 import matplotlib.pylab as plt
 import profig
 
-const = collections.namedtuple('Constants',
-                               ["CLASSIC_DELTA", "LINEAR_DELTA", "QUADRATIC_DELTA", "ROTATED_DELTA", "EDERS_DELTA",
-                                "EDERS_SIMPLE_DELTA", "EUCLIDEAN", "MANHATTAN", "COSINE", "CANBERRA", "BRAY_CURTIS",
-                                "CHEBYSHEV", "CORRELATION", "MAHALANOBIS", "MAHALANOBIS_SELF"])._make(range(15))
 
+const = enum.Enum('const', """CLASSIC_DELTA LINEAR_DELTA QUADRATIC_DELTA 
+                              ROTATED_DELTA EDERS_DELTA EDERS_SIMPLE_DELTA 
+                              EUCLIDEAN MANHATTAN COSINE CANBERRA BRAY_CURTIS 
+                              CHEBYSHEV CORRELATION MAHALANOBIS MAHALANOBIS_SELF""")
+                            
 
 class Config():
     """
@@ -52,7 +54,7 @@ class Config():
     ``pydelta.ini`` in the current directory.
     """
     cfg = None
-
+    
     def __init__(self, commandline=False):
         """
         Initializes the options. Tries to read the configuration file,
@@ -73,6 +75,7 @@ class Config():
         writes/reads a default configuration to pydelta.ini. If you want to
         change these parameters, use the ini file.
         """
+        self.cfg.coercer.register(const, lambda x: x.name, lambda x: const[x])
         self.cfg.init("files.ini", False, comment="if true writes a configuration file to disk")
         self.cfg.init("files.subdir", "corpus", comment="the subdirectory containing the text files used as input")
         self.cfg.init("files.refcorpus", "refcorpus", comment="the reference corpus required for some methods")
@@ -87,7 +90,7 @@ class Config():
         self.cfg.init("stat.mfwords", 2000, comment="number of most frequent words to use " +
                                                     "in the calculation of delta. 0 for all words")
         self.cfg.init("stat.culling", 0, type=float, comment="ratio (or absolute number, if > 1) of documents a word must appear in to be retained in the corpus.")
-        self.cfg.init("stat.delta_choice", 0, comment="Supported Algorithms: 0. CLASSIC_DELTA, "
+        self.cfg.init("stat.delta_choice", const["CLASSIC_DELTA"], comment="Supported Algorithms: 0. CLASSIC_DELTA, "
                                                       "1. LINEAR_DELTA, 2. QUADRATIC_DELTA, 3. ROTATED_DELTA, 4. EDERS_DELTA, 5. EDERS_SIMPLE_DELTA,"
                                                       "6. EUCLEDIAN, 7. MANHATTAN, 8. COSINE")
         self.cfg.init("stat.linkage_method", "ward", comment="method how the distance between the newly formed " +
@@ -329,6 +332,7 @@ class Delta(pd.DataFrame):
         :param delta_choice: the *value* of one of the method constants, see const
         :param refcorpus: Reference corpus for those methods that need it
         """
+        print("delta_choice: " + str(delta_choice))
         if delta_choice == const.CLASSIC_DELTA:
             super().__init__(self.delta_function(corpus, self.classic_delta, corpus.stds(), len(corpus.index)))
         elif delta_choice == const.LINEAR_DELTA:
@@ -582,7 +586,7 @@ class Figure():
         self.figure_title = figure_title
         self.stat_mfwords = stat_mfwords
         self.delta_choice = delta_choice
-        self.delta_algorithm = list(vars(const).keys())[delta_choice]
+        self.delta_algorithm = delta_choice.name
 
         self.save_sep = "-"
         self.figure_show = figure_show
@@ -885,7 +889,7 @@ def compare_deltas():
 
     eval_results = []
     #calculates the specified delta
-    for (delta_choice, delta_name) in zip(const, vars(const).keys()):
+    for (delta_name, delta_choice) in const.__members__.items():
         #create reference corpus for Argamon's axis rotated Delta
         if delta_choice == const.ROTATED_DELTA or delta_choice == const.MAHALANOBIS:
             refcorpus = Corpus(subdir=cfg.cfg['files.refcorpus'], encoding=cfg.cfg["files.encoding"])
@@ -899,7 +903,8 @@ def compare_deltas():
         eval_results.append(ev.evaluate_deltas(deltas, verbose=False))
 
     print("\n\nResults:")
-    results = zip(vars(const).keys(), eval_results)
+    delta_names = [names for (names, values) in const.__members__.items()]
+    results = zip(delta_names, eval_results)
     for name, result in sorted(results, key=lambda x: x[1], reverse=True):
         print("{name:>20} {result:.4f}".format(name=name.replace("_", " ").title(), result=result))
 
@@ -935,18 +940,19 @@ def main():
     #setup the figure using the deltas
     fig = Figure(deltas.get_linkage(cfg.cfg["stat.linkage_method"]), deltas.index,
                  cfg.cfg["figure.fig_orientation"], cfg.cfg["figure.font_size"], cfg.cfg["figure.title"],
-                 cfg.cfg["stat.mfwords"], cfg.cfg["stat.delta_choice"], cfg.cfg["figure.show"])
+                 cfg.cfg["stat.mfwords"], cfg.cfg["stat.delta_choice"], cfg.cfg["figure.show"])  
     #create the figure
     dendro_dat, plot = fig.show()
     if cfg.cfg["stat.evaluate"]:
         ev = Eval()
         att, err = ev.evaluate_results(dendro_dat)
-        print("\nAlgorithm: ", (list(vars(const).keys())[delta_choice]).replace("_", " ").title())
+        const_dic = collections.OrderedDict(zip(const._fields, const))
+        print("\nAlgorithm: ", (list(const_dic.keys())[delta_choice]).replace("_", " ").title())
         print("Simple eval based on dendrogram (total attributions - errors): ", att, " - ", err)
         print("Evaluation based on diff of means: ", ev.evaluate_deltas(deltas, verbose=False))
 
 
 if __name__ == '__main__':
-    #compare_deltas()
-    main()
+    compare_deltas()
+    #main()
 
