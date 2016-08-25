@@ -122,3 +122,23 @@ class Dendrogram:
 
     def save(self, fname, **kwargs):
         self.fig.savefig(fname, **kwargs)
+
+
+def scatterplot_delta(deltas, red_f=manifold.MDS(dissimilarity="precomputed", n_jobs=-1) ):
+    """
+    deltas: pydelta dist. matrix
+    red_f: func for dimensionality reduction, e.g. "decomposition.PCA(n_components=2)"
+
+    return: plot?
+    """
+    X_red = red_f.fit_transform(deltas)
+    group_map = {y:x for x,y in enumerate(deltas.document_describer.groups(deltas.index)) }
+    label_names = [ deltas.document_describer.group_label(x) for x in deltas.index ]
+    cluster_labels = [ float(group_map[deltas.document_describer.group_name(x)])/len(group_map) for x in deltas.index ]
+    colors = cm.spectral(cluster_labels)
+
+    plt.scatter(X_red[:, 0], X_red[:, 1], marker='o', s=30, lw=0, alpha=0.7, c=colors)
+
+    for label, color in dict(zip(label_names, colors)).items():
+        plt.scatter([], [], marker='o', s=30, lw=0, alpha=0.7, c=color, label=label)
+    plt.legend()
