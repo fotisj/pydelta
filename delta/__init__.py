@@ -11,12 +11,15 @@ __title__ = 'delta'
 __version__ = '2.0.0'
 __author__ = 'Fotis Jannidis, Thorsten Vitt'
 
-from .corpus import Corpus, FeatureGenerator, LETTERS_PATTERN, WORD_PATTERN
-from .deltas import registry, Normalization, DeltaFunction, \
+from delta.corpus import Corpus, FeatureGenerator, LETTERS_PATTERN, WORD_PATTERN
+from delta.deltas import registry, Normalization, DeltaFunction, \
         PDistDeltaFunction, CompositeDeltaFunction
-from .cluster import Clustering
-from .features import get_rfe_features
+from delta.cluster import Clustering, KMedoidsClustering, FlatClustering
+from delta.features import get_rfe_features
+from delta.graphics import Dendrogram
 
 __all__ = [ Corpus, FeatureGenerator, LETTERS_PATTERN, WORD_PATTERN,
            registry, Normalization,
-           DeltaFunction, PDistDeltaFunction, CompositeDeltaFunction, Clustering, get_rfe_features ]
+           DeltaFunction, PDistDeltaFunction, CompositeDeltaFunction,
+           Clustering, FlatClustering,  KMedoidsClustering,
+           get_rfe_features, Dendrogram ]
