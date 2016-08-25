@@ -9,3 +9,8 @@ refcorpus
 build
 dist
 .ipynb_checkpoints
+.coverage
+.eggs
+.noseids
+coverage.xml
+nosetests.xml

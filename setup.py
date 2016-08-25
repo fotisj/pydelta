@@ -18,11 +18,11 @@ setup(
         'numpy'       # work around https://github.com/numpy/numpy/issues/2434
     ],
     install_requires=[
+        'scipy>=0.14.0',
         'matplotlib>=1.3.1',
         'numpy>=1.8.1',
         'pandas>=0.13.1',
 #        'profig>=0.2.8',
-        'scipy>=0.14.0',
         'scikit-learn>=0.16.0',
         'regex'
     ],

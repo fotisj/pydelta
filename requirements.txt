@@ -2,4 +2,7 @@
 
 git+https://github.com/terkkila/scikit-learn@kmedoids#egg=scikit_learn
 
+nose
 nose-progressive
+nosexcover
+Sphinx
