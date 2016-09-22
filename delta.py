@@ -795,7 +795,7 @@ class Figure():
         self.figure_title = figure_title
         self.stat_mfwords = stat_mfwords
         self.delta_choice = delta_choice
-        self.delta_algorithm = list(vars(const).keys())[delta_choice]
+        self.delta_algorithm = list(const._asdict().keys())[delta_choice]
 
         self.save_sep = "-"
         self.figure_show = figure_show
