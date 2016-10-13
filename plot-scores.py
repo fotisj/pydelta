@@ -33,7 +33,7 @@ for algo in algorithms:
                    + geom_point(alpha=.7) \
                    + ylab("Scores") + ylim(0,4.0) \
                    + ggtitle(algo) \
-                   + theme_seaborn(context='paper')
+                   + theme_bw()
          linear.save(os.path.join(options.output_dir, "delta-scores-{}.pdf".format(algo)))
 
          err = ggplot(aes(x="Words", y="Clustering_Errors", shape="Case_Sensitive",
@@ -42,7 +42,7 @@ for algo in algorithms:
                   + scale_y_reverse()  + ylab("Errors") + \
                                    ylim(scores["Clustering_Errors"].min() - 2,
                                         scores["Clustering_Errors"].max() + 1) \
-                  + theme_seaborn(context='paper')
+                  + theme_bw()
          err.save(os.path.join(options.output_dir, "delta-errors-{}.pdf".format(algo)))
 
          ari = ggplot(aes(x="Words", y="Adjusted_Rand_Index", shape="Case_Sensitive",
@@ -50,7 +50,7 @@ for algo in algorithms:
                   + geom_point(alpha=.7) \
                   + scale_y_reverse()  + ylab("Adjusted Rand Index") + \
                                    ylim(-1, 1) \
-                  + theme_seaborn(context='paper')
+                  + theme_bw()
          err.save(os.path.join(options.output_dir, "delta-ari-{}.pdf".format(algo)))
 
 
@@ -59,7 +59,7 @@ deltas = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive",
          + geom_point(alpha=.7,size=5) \
          + ylab("Scores") + ylim(0,4.0) \
          + facet_wrap("Algorithm") \
-         + theme_seaborn(context='paper')
+         + theme_bw()
 deltas.save(os.path.join(options.output_dir, "all-delta-scores.pdf"), width=29.7, height=20.5, units="cm")
 
 errors = ggplot(aes(x="Words", y="Clustering_Errors", shape="Case_Sensitive",
@@ -69,7 +69,7 @@ errors = ggplot(aes(x="Words", y="Clustering_Errors", shape="Case_Sensitive",
                           ylim(scores["Clustering_Errors"].min() - 2,
                                scores["Clustering_Errors"].max() + 1) \
          + facet_wrap("Algorithm") \
-         + theme_seaborn(context='paper')
+         + theme_bw()
 errors.save(os.path.join(options.output_dir, "all-delta-errors.pdf"), width=29.7, height=20.5, units="cm")
 
 ari = ggplot(aes(x="Words", y="Adjusted_Rand_Index", shape="Case_Sensitive",
@@ -78,5 +78,5 @@ ari = ggplot(aes(x="Words", y="Adjusted_Rand_Index", shape="Case_Sensitive",
          + ylab("Adjusted Rand Index") + \
                           ylim(-1, 1) \
          + facet_wrap("Algorithm") \
-         + theme_seaborn(context='paper')
+         + theme_bw()
 ari.save(os.path.join(options.output_dir, "all-delta-ari.pdf"), width=29.7, height=20.5, units="cm")
