@@ -7,7 +7,7 @@ import argparse
 import os
 
 parser = argparse.ArgumentParser("Plot from a bunch of all-scores.csv files")
-parser.add_argument("scores", default="all-scores.csv", 
+parser.add_argument("scores", default="all-scores.csv",
                   help="File containing the scores to plot")
 parser.add_argument("-o", "--output-dir", default="plots",
                   help="output directory for the plots")
@@ -28,13 +28,13 @@ algorithms = set(scores["Algorithm"].values)
 for algo in algorithms:
          algo_scores = scores[scores["Algorithm"] == algo ]
 
-         linear = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive", 
+         linear = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive",
                               color="Corpus"), data=algo_scores) \
                    + geom_point(alpha=.7) \
                    + ylab("Scores") + ylim(0,4.0) \
                    + ggtitle(algo) \
                    + theme_seaborn(context='paper')
-         ggsave(linear, os.path.join(options.output_dir, "delta-scores-{}.pdf".format(algo)))
+         linear.save(os.path.join(options.output_dir, "delta-scores-{}.pdf".format(algo)))
 
          err = ggplot(aes(x="Words", y="Clustering_Errors", shape="Case_Sensitive",
                     color="Corpus"), algo_scores) \
@@ -43,7 +43,7 @@ for algo in algorithms:
                                    ylim(scores["Clustering_Errors"].min() - 2,
                                         scores["Clustering_Errors"].max() + 1) \
                   + theme_seaborn(context='paper')
-         ggsave(err, os.path.join(options.output_dir, "delta-errors-{}.pdf".format(algo)))
+         err.save(os.path.join(options.output_dir, "delta-errors-{}.pdf".format(algo)))
 
          ari = ggplot(aes(x="Words", y="Adjusted_Rand_Index", shape="Case_Sensitive",
                     color="Corpus"), algo_scores) \
@@ -51,8 +51,8 @@ for algo in algorithms:
                   + scale_y_reverse()  + ylab("Adjusted Rand Index") + \
                                    ylim(-1, 1) \
                   + theme_seaborn(context='paper')
-         ggsave(err, os.path.join(options.output_dir, "delta-ari-{}.pdf".format(algo)))
-         
+         err.save(os.path.join(options.output_dir, "delta-ari-{}.pdf".format(algo)))
+
 
 deltas = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive",
                     color="Corpus"), data=scores) \
@@ -60,7 +60,7 @@ deltas = ggplot(aes(x="Words", y="Simple_Delta_Score", shape="Case_Sensitive",
          + ylab("Scores") + ylim(0,4.0) \
          + facet_wrap("Algorithm") \
          + theme_seaborn(context='paper')
-ggsave(deltas, os.path.join(options.output_dir, "all-delta-scores.pdf"), width=29.7, height=20.5, units="cm")
+deltas.save(os.path.join(options.output_dir, "all-delta-scores.pdf"), width=29.7, height=20.5, units="cm")
 
 errors = ggplot(aes(x="Words", y="Clustering_Errors", shape="Case_Sensitive",
                     color="Corpus"), scores) \
@@ -70,7 +70,7 @@ errors = ggplot(aes(x="Words", y="Clustering_Errors", shape="Case_Sensitive",
                                scores["Clustering_Errors"].max() + 1) \
          + facet_wrap("Algorithm") \
          + theme_seaborn(context='paper')
-ggsave(errors, os.path.join(options.output_dir, "all-delta-errors.pdf"), width=29.7, height=20.5, units="cm")
+errors.save(os.path.join(options.output_dir, "all-delta-errors.pdf"), width=29.7, height=20.5, units="cm")
 
 ari = ggplot(aes(x="Words", y="Adjusted_Rand_Index", shape="Case_Sensitive",
                     color="Corpus"), scores) \
@@ -79,4 +79,4 @@ ari = ggplot(aes(x="Words", y="Adjusted_Rand_Index", shape="Case_Sensitive",
                           ylim(-1, 1) \
          + facet_wrap("Algorithm") \
          + theme_seaborn(context='paper')
-ggsave(ari, os.path.join(options.output_dir, "all-delta-ari.pdf"), width=29.7, height=20.5, units="cm")
+ari.save(os.path.join(options.output_dir, "all-delta-ari.pdf"), width=29.7, height=20.5, units="cm")
