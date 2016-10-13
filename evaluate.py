@@ -35,8 +35,8 @@ def parse_range(rangespec):
     if isinstance(rangespec, list):
         rangespec = ",".join(rangespec)
     return list(chain.from_iterable(
-             range(*map(int, part.split(":"))) if ":" in part 
-             else [int(part)] 
+             range(*map(int, part.split(":"))) if ":" in part
+             else [int(part)]
              for part in rangespec.split(",")))
 
 def sweep(corpus_dir='corpus',
@@ -70,8 +70,8 @@ def sweep(corpus_dir='corpus',
     # The score df will be used to store the simple delta scores for each
     # combination as a rough first guide. This will be dumped to a CSV
     # file after at the end.
-    score_index = pd.MultiIndex.from_product([randomize_texts, 
-            [name.title() for name in const.__dict__.keys()],
+    score_index = pd.MultiIndex.from_product([randomize_texts,
+            [name.title() for name in const._asdict().keys()],
             mfws,
             [False, True]], names=["NTexts", "Algorithm", "Words", "Case Insensitive"])
     scores = pd.DataFrame(index=score_index, columns=["Score"])
@@ -116,7 +116,7 @@ def sweep(corpus_dir='corpus',
                           Corpus(subdir=refcorpus_dir, lower_case=True).get_mfw_table(0)]
 
         for mfw in mfws:
-            for fname, fno in const.__dict__.items():
+            for fname, fno in const._asdict().items():
                 for lc in cases:
                     outfn = os.path.join(output, filename(textcount, fname, mfw, lc))
                     if (cont and os.path.isfile(outfn)):
@@ -164,7 +164,7 @@ def get_argparser():
             help="File with frequency tables from stylo, ignore corpus_dir")
     parser.add_argument('-n', '--randomize-texts', nargs=1, default=None, metavar="SPEC",
                         help="""
-                        Sweep over a subset of texts of varying size. The argument is a spec 
+                        Sweep over a subset of texts of varying size. The argument is a spec
                         as for the --words option. If given, a random list of the texts in
                         the corpus is created and we iterate over the first n texts, with n
                         according to this spec.
@@ -176,5 +176,5 @@ if __name__ == '__main__':
     options = get_argparser().parse_args()
     if options.output is None:
         options.output = options.corpus_dir + "_deltas"
-        
+
     sweep(**options.__dict__)
