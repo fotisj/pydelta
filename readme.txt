@@ -13,6 +13,25 @@ a reliable implementation with a nice Gui and much more features you should
 have a closer look at the great R tool 'stylo': 
 https://sites.google.com/site/computationalstylistics/
 
+Which branch should I use?
+--------------------------
+
+* The *develop* branch contains the most up-to-date version of the
+  classic command line application together with a bunch of extra
+  scripts that can be used to perform mass experiments on delta
+  measures. The scripts allow to systematically variate parameters
+  like algorithm, number of features, text length etc. and generate
+  comparison charts. This branch also includes the largest number of
+  delta measures, however the extra scripts are quite a mess.
+* The *master* branch is basically a version of the develop branch
+  before we introduced all those confusing scripts, with minor
+  maintenance patches.
+* The *next* branch is a major work-in-progress rewrite that is
+  intended to be used as a python library. It makes it easier to
+  program against parts of the delta stuff, but it does not yet
+  contain the ``.ini`` file driven main program and the parameter
+  sweeping scripts.
+
 Installation
 ------------
 
@@ -56,7 +75,7 @@ You can always use commandline parameters to override default settings
     ./delta.py -O figure.title:"German Novelists around 1800" -O stat.mfwords:2500
 
 (setting a title and the amount of most frequent words used for delta). Use
-``pydelta -h`` for more information or look into the ini-file to find
+``delta -h`` for more information or look into the ini-file to find
 explanations of all parameters.
 
 Thanks go to
