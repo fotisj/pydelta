@@ -40,11 +40,11 @@ import matplotlib.pylab as plt
 import profig
 
 
-const = enum.Enum('const', """CLASSIC_DELTA LINEAR_DELTA QUADRATIC_DELTA 
-                              ROTATED_DELTA EDERS_DELTA EDERS_SIMPLE_DELTA 
-                              EUCLIDEAN MANHATTAN COSINE CANBERRA BRAY_CURTIS 
+const = enum.Enum('const', """CLASSIC_DELTA LINEAR_DELTA QUADRATIC_DELTA
+                              ROTATED_DELTA EDERS_DELTA EDERS_SIMPLE_DELTA
+                              EUCLIDEAN MANHATTAN COSINE CANBERRA BRAY_CURTIS
                               CHEBYSHEV CORRELATION MAHALANOBIS MAHALANOBIS_SELF""")
-                            
+
 
 class Config():
     """
@@ -54,7 +54,7 @@ class Config():
     ``pydelta.ini`` in the current directory.
     """
     cfg = None
-    
+
     def __init__(self, commandline=False):
         """
         Initializes the options. Tries to read the configuration file,
@@ -78,7 +78,7 @@ class Config():
         self.cfg.coercer.register(const, lambda x: x.name, lambda x: const[x])
         self.cfg.init("files.ini", False, comment="if true writes a configuration file to disk")
         self.cfg.init("files.subdir", "corpus", comment="the subdirectory containing the text files used as input")
-        self.cfg.init("files.refcorpus", "refcorpus", comment="the reference corpus required for some methods")
+        self.cfg.init("files.refcorpus", "refcorpus", comment="the reference corpus used by rotated_delta and mahanalobis")
         self.cfg.init("files.encoding", "utf-8", comment="the file encoding for the input files")
         self.cfg.init("files.use_wordlist", False, comment="not implemented yet")
         self.cfg.init("data.use_corpus", False, comment="use a corpus of word frequencies from file; filename is " +
@@ -136,8 +136,8 @@ class Corpus(pd.DataFrame):
     A corpus is a :class:`pandas.DataFrame` using words as lines and documents
     as columns, i.e. the data cell at the position ``corpus.at['and',
     'Foo.txt']`` contains the frequency (as a float) of the word *and* in the
-    document *Foo.txt*: 
-    
+    document *Foo.txt*:
+
     ======  ========= ========= =========
     .       filename1 filename2 filename3
     ======  ========= ========= =========
@@ -280,7 +280,7 @@ class Corpus(pd.DataFrame):
     def stds(self):
         """
         Calculates the standard deviation std for each word of the corpus
-        
+
         :returns: a :class:`pandas.Series` containing the standard deviations,
             with the words as index
         """
@@ -289,7 +289,7 @@ class Corpus(pd.DataFrame):
     def medians(self):
         """
         Calculates the median for each word of the corpus
-        
+
         :returns: a :class:`pandas.Series` containing the medians and the
            words as index
         """
@@ -353,7 +353,7 @@ class Delta(pd.DataFrame):
             super().__init__(self.delta_function(corpus, self.cosine))
         elif delta_choice == const.CANBERRA:
             super().__init__(self.delta_function(corpus, ssd.canberra))
-        elif delta_choice == const.BRAY_CURTIS: 
+        elif delta_choice == const.BRAY_CURTIS:
             super().__init__(self.delta_function(corpus, ssd.braycurtis))
         elif delta_choice == const.CHEBYSHEV:
             super().__init__(self.delta_function(corpus, ssd.chebyshev))
@@ -454,7 +454,7 @@ class Delta(pd.DataFrame):
         # (normalized by n-1), but is much faster. XXX evaluate whether it would be
         # problematic to use that instead of our own _cov_matrix
         """
-        Calculates the covariance matrix S consisting of the covariances 
+        Calculates the covariance matrix S consisting of the covariances
         :math:`\sigma_{ij}` for the words :math:`w_i, w_j` in the given comparison corpus.
 
         :param corpus: is a words x texts DataFrame representing the reference
@@ -512,10 +512,10 @@ class Delta(pd.DataFrame):
 
         :param corpus: :class:`Corpus` or :class:`pandas.DataFrame`
             (word×documents -> word frequencies) for which to calculate the
-            document deltas 
+            document deltas
         :param refcorpus: :class:`Corpus` or :class:`pandas.DataFrame`
             with the reference corpus
-        :param cov_alg: covariance algorithm choice, 
+        :param cov_alg: covariance algorithm choice,
             ``'argamon'``, ``'nonbiased'`` or a function
         :returns: a delta matrix as :class:pandas.DataFrame
         """
@@ -540,7 +540,7 @@ class Delta(pd.DataFrame):
             refc = refcorpus.loc[corpus.index].fillna(0)
         cov = refc.T.cov()
         iv = linalg.pinv(cov)   # it's probably singular
-        return self.delta_function(corpus, ssd.mahalanobis, iv)        
+        return self.delta_function(corpus, ssd.mahalanobis, iv)
 
     def get_linkage(self, stat_linkage_method):
         #create the datamodel which is needed as input for the dendrogram
@@ -764,7 +764,7 @@ class Eval():
 
     def error_eval(self, l):
         """
-        trival check of a list of numbers for 'errors'. 
+        trival check of a list of numbers for 'errors'.
         An error is defined as :math:`i - (i-1)  \\not= 1`
 
         :param l: a list of numbers representing the position of the author
@@ -847,7 +847,7 @@ class Eval():
         """
         Simple delta quality score for the given delta matrix:
         The difference between the means of the standardized differences between
-        works of different authors and works of the same author; i.e. different 
+        works of different authors and works of the same author; i.e. different
         authors are considered *score* standard deviations more different than
         equal authors.
 
@@ -940,7 +940,7 @@ def main():
     #setup the figure using the deltas
     fig = Figure(deltas.get_linkage(cfg.cfg["stat.linkage_method"]), deltas.index,
                  cfg.cfg["figure.fig_orientation"], cfg.cfg["figure.font_size"], cfg.cfg["figure.title"],
-                 cfg.cfg["stat.mfwords"], cfg.cfg["stat.delta_choice"], cfg.cfg["figure.show"])  
+                 cfg.cfg["stat.mfwords"], cfg.cfg["stat.delta_choice"], cfg.cfg["figure.show"])
     #create the figure
     dendro_dat, plot = fig.show()
     if cfg.cfg["stat.evaluate"]:
@@ -953,6 +953,6 @@ def main():
 
 
 if __name__ == '__main__':
-    compare_deltas()
-    #main()
+    #compare_deltas()
+    main()
 
