@@ -108,9 +108,8 @@ class Config():
         self.cfg.init("stat.mfwords", 2000, comment="number of most frequent words to use " +
                                                     "in the calculation of delta. 0 for all words")
         self.cfg.init("stat.culling", 0, type=float, comment="ratio (or absolute number, if > 1) of documents a word must appear in to be retained in the corpus.")
-        self.cfg.init("stat.delta_choice", const["CLASSIC_DELTA"], comment="Supported Algorithms: 0. CLASSIC_DELTA, "
-                                                      "1. LINEAR_DELTA, 2. QUADRATIC_DELTA, 3. ROTATED_DELTA, 4. EDERS_DELTA, 5. EDERS_SIMPLE_DELTA,"
-                                                      "6. EUCLEDIAN, 7. MANHATTAN, 8. COSINE")
+        self.cfg.init("stat.delta_choice", const["CLASSIC_DELTA"], comment="Supported Algorithms: " +
+                      ", ".join(c.name for c in const))
         self.cfg.init("stat.linkage_method", "ward", comment="method how the distance between the newly formed " +
                                                              "cluster and each candidate is calculated. Valid " +
                                                              "values: 'ward', 'single', 'average', 'complete',   " +
