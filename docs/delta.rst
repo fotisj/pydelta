@@ -48,6 +48,14 @@ delta.util module
     :undoc-members:
     :show-inheritance:
 
+delta.graphics module
+---------------------
+
+.. automodule:: delta.graphics
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 delta.experiments module
 ------------------------
 
