@@ -413,7 +413,8 @@ def _prep_linear(corpus):
 
 PreprocessingDeltaFunction(_LinearDelta.distance, _prep_linear, descriptor="linear2")
 
-def _classic_delta(a, b, stds, n):
+def _classic_delta(a, b, stds, n
+                   ):
     """
     Burrow's Classic Delta, from pydelta 0.1
     """
@@ -729,6 +730,21 @@ def diversity_scaled(corpus):
 def sqrt(corpus):
     return corpus.sqrt()
 
+@normalization
+def clamp(corpus, lower_bound=-1, upper_bound=1):
+    clamped = corpus.copy()
+    clamped[clamped < lower_bound] = lower_bound
+    clamped[clamped > upper_bound] = upper_bound
+    return clamped
+
+@normalization
+def ternarize(corpus, lower_bound=-0.43, upper_bound=0.43):
+    ternarized = corpus.copy()
+    lower = corpus < lower_bound
+    ternarized[lower] = -1
+    ternarized[~lower & (corpus < upper_bound)] = 0
+    ternarized[corpus > upper_bound] = +1
+    return ternarized
 
 ################ Here come the deltas
 
