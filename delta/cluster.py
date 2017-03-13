@@ -245,5 +245,5 @@ try:
             self.set_clusters(model.fit_predict(distances))
 
 except ImportError:
-    logger.log(logging.ERROR, "KMedoids clustering not available.\n" \
+    logger.log(logging.WARNING, "KMedoids clustering not available.\n" \
                "You need a patched scikit-learn, see README.txt", exc_info=1)

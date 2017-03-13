@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 The delta.corpus module contains code for building, loading, saving, and
 manipulating the representation of a corpus. Its heart is the :class:`Corpus`
