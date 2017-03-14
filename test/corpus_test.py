@@ -64,7 +64,7 @@ class Cluster_Test:
     def init_test(self):
         # FIXME
         corpus = d.Corpus(testdir).get_mfw_table(1000)
-        deltas = d.registry.cosine_delta(corpus)
+        deltas = d.functions.cosine_delta(corpus)
         hclust = d.Clustering(deltas)
         fclust = hclust.fclustering()
         print(fclust.describe())

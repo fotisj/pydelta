@@ -41,16 +41,16 @@ class Delta_Test:
                      function.name, distances.simple_score(), expected_score))
 
     def burrows_test(self):
-        self.check_function(d.registry.burrows, 0.7538867972199293)
+        self.check_function(d.functions.burrows, 0.7538867972199293)
 
     def linear_test(self):
-        self.check_function(d.registry.linear, 1149.434663563308)
+        self.check_function(d.functions.linear, 1149.434663563308)
 
     def quadratic_test(self):
-        self.check_function(d.registry.quadratic, 1102.845003724634)
+        self.check_function(d.functions.quadratic, 1102.845003724634)
 
     def eder_test(self):
-        self.check_function(d.registry.eder, 0.3703309813454142)
+        self.check_function(d.functions.eder, 0.3703309813454142)
 
     def cosine_delta_test(self):
-        self.check_function(d.registry.cosine_delta, 0.6156353166442046)
+        self.check_function(d.functions.cosine_delta, 0.6156353166442046)
