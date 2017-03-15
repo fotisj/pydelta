@@ -11,6 +11,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from sklearn import manifold, decomposition
 from sklearn.base import TransformerMixin
+from collections.abc import Iterable
 
 
 class Dendrogram:
@@ -150,3 +151,36 @@ def scatterplot_delta(deltas,
         plt.scatter([], [], marker='o', s=30, lw=0, alpha=0.7, c=color, label=label)
     plt.legend()
     return plt.gca()
+
+def _prep_slice(arg):
+    """
+    Prepare an argument to be passed to an indexer's __getitem__.
+
+    Arg can be none (``:``), an list (passed through), a slice (passed
+    through), or sth else like an integer (``:n``)
+    """
+    if arg is None:
+        return slice(None)
+    elif isinstance(arg, Iterable) or isinstance(arg, slice):
+        return arg
+    else:
+        return slice(arg)
+
+def spikeplot(corpus, docs=slice(None), features=50, figsize=None, **kwargs):
+    """
+    Prepares a spike plot of a (normalized) corpus.
+
+    Args:
+        corpus (pandas.DataFrame): The corpus to plot
+        docs (int, list or slice): the documents to include in the plot, default: all documents
+        features (int, list, or slice): the features to plot, default: top 50 features
+        figsize (2-element list): size of the plot
+    Returns:
+        the plot
+    """
+    selection = corpus.ix.__getitem__((_prep_slice(docs), _prep_slice(features)))
+    if figsize is None:
+        w, h = plt.rcParams.get('figure.figsize')
+        figsize = [1.5*w, 0.5*h]
+    axes = selection.T.plot(kind='bar', figsize=figsize, **kwargs)
+    return axes
