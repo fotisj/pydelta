@@ -43,8 +43,8 @@ class Clustering:
 
     def _calc_linkage(self):
         if self.method == "ward":
-            return sch.linkage(self.distance_matrix, method="ward",
-                               metric="euclidean")
+            return sch.ward(ssd.squareform(self.distance_matrix,
+                                           force="tovector"))
         else:
             return sch.linkage(ssd.squareform(self.distance_matrix),
                                method=self.method, metric="euclidean")
