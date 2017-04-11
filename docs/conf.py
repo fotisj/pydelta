@@ -55,6 +55,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
+    'nbsphinx'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -71,7 +72,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'PyDelta'
-copyright = '2014–2015, Fotis Jannidis & Thorsten Vitt'
+copyright = '2014–2017, Fotis Jannidis & Thorsten Vitt'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

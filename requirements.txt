@@ -6,3 +6,4 @@ nose
 nose-progressive
 nosexcover
 Sphinx
+nbsphinx

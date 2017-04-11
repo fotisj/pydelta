@@ -15,6 +15,7 @@ Contents:
    :maxdepth: 2
 
    README
+   GettingStarted.ipynb
    concept
    delta
 
