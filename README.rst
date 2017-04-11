@@ -22,7 +22,7 @@ PyDelta requires **Python 3.3 or newer**. It has quite a set of dependencies (Nu
 
 Developers can clone the repo and run pip to install::
 
-    git clone -b next https://github.com/fotis007/pydelta
+    git clone -b next https://github.com/cophi-wue/pydelta
     cd pydelta
     pip install -r requirements.txt
 
@@ -31,7 +31,7 @@ k-Medoids-Clustering which is not in the official version yet.
 
 If you only wish to use it, not to hack on it, pip can clone and install it for you::
 
-    pip install git+https://github.com/fotis007/pydelta@next
+    pip install git+https://github.com/cophi-wue/pydelta@next
 
 (Note that the Python 3 version of pip is sometimes called ``pip3``).
 

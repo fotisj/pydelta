@@ -6,4 +6,5 @@ nose
 nose-progressive
 nosexcover
 Sphinx
+ipykernel
 nbsphinx

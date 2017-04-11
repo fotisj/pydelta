@@ -29,7 +29,7 @@ try:
       ]
   }
   html_theme_options = {
-    'github_user': 'fotis007',
+    'github_user': 'cophi-wue',
     'github_repo': 'pydelta',
   }
 except ImportError:
