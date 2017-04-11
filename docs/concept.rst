@@ -73,7 +73,7 @@ The latter is created from a *descriptor* which consists of the distance functio
     CompositeDeltaFunction("manhattan-z_score", "burrows", "Burrows' Delta")
 
 
-Running Multiple Experiments
-============================
+3. Clustering
+-------------
 
 TODO

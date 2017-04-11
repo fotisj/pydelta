@@ -1,10 +1,7 @@
-delta package
-=============
+API documentation
+=================
 
 The end-user facing stuff from the submodules is also exported by the package, so you can call, e.g., ``delta.Corpus``.
-
-Submodules
-----------
 
 delta.corpus module
 -------------------
@@ -52,14 +49,6 @@ delta.graphics module
 ---------------------
 
 .. automodule:: delta.graphics
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-delta.experiments module
-------------------------
-
-.. automodule:: delta.experiments
     :members:
     :undoc-members:
     :show-inheritance:
