@@ -386,6 +386,31 @@ class DeltaFunction:
         """
         return self.create_result(self.iterate_distance(corpus), corpus)
 
+
+    def prepare(self, corpus):
+        """
+        Return the corpus prepared for the metric, if applicable.
+
+        Many delta functions consist of a preparation step that normalizes
+        the corpus in some way and a relatively standard distance metric
+        that is one of the built-in distance metrics of scikit-learn or
+        scipy.
+
+        If a specific delta variant supports this, it should expose a metric
+        attribute set to a string or a callable that implements the metric,
+        and possibly override this method in order to perform the preparation
+        steps.
+
+        The default implementation simply returns the corpus as-is.
+
+        Raises:
+            NotImplementedError if there is no metric
+        """
+        if hasattr(self, metric):
+            return corpus
+        else:
+            raise NotImplementedError("This delta function does not support a standard metric.")
+
 class _LinearDelta(DeltaFunction):
 
     @staticmethod
@@ -470,14 +495,21 @@ class CompositeDeltaFunction(DeltaFunction):
         """
         items = descriptor.split(sep)
         self.basis = registry.deltas[items[0]]
+        if hasattr(self.basis, 'metric'):
+            self.metric = self.basis.metric
+        else:
+            self.metric = self.basis.distance_function
         del items[0]
         self.normalizations = [registry.normalizations[n] for n in items]
         super().__init__(self, descriptor, name, title, register)
 
-    def __call__(self, corpus):
+    def prepare(self, corpus):
         for normalization in self.normalizations:
             corpus = normalization(corpus)
-        return self.create_result(self.basis(corpus), corpus)
+        return corpus
+
+    def __call__(self, corpus):
+        return self.create_result(self.basis(self.prepare(corpus)), corpus)
 
 
 class PDistDeltaFunction(DeltaFunction):

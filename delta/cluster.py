@@ -234,15 +234,28 @@ class FlatClustering:
 try:
     from sklearn.cluster import KMedoids
 
-    class KMedoidsClustering(FlatClustering):
+    class KMedoidsClustering_distances(FlatClustering):
 
         def __init__(self, distances, n_clusters=None, metadata=None,
                      **kwargs):
             super().__init__(distances, metadata, **kwargs)
             if n_clusters is None:
                 n_clusters = self.group_count
-            model = KMedoids(n_clusters=n_clusters, **kwargs)
+            model = KMedoids(n_clusters=n_clusters)
             self.set_clusters(model.fit_predict(distances))
+
+    class KMedoidsClustering(FlatClustering):
+
+        def __init__(self, corpus, delta, n_clusters=None, extra_args={},
+                     metadata=None, **kwargs):
+            super().__init__(corpus, metadata, **kwargs)
+            if n_clusters is None:
+                n_clusters = self.group_count
+            model = KMedoids(n_clusters=n_clusters,
+                             distance_metric=delta.metric, **extra_args)
+            data = delta.prepare(corpus)
+            self.set_clusters(model.fit_predict(data))
+
 
 except ImportError:
     logger.log(logging.WARNING, "KMedoids clustering not available.\n" \
