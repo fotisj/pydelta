@@ -1,5 +1,7 @@
 -e .
 
+Cython
+
 git+https://github.com/Kornel/scikit-learn@tk-kmedoids#egg=scikit_learn
 
 nose
