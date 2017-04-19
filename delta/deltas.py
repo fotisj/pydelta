@@ -53,6 +53,7 @@ from itertools import combinations
 from functools import update_wrapper
 from .util import Metadata
 from .corpus import Corpus
+from textwrap import dedent
 
 sep = '-'   # separates parts of a descriptor
 
@@ -158,19 +159,25 @@ class _FunctionRegistry:
         return attributes
 
     def __str__(self):
-        return \
-        """
-        {} Delta Functions:
-        ------------------
-        {}
+        return dedent(
+            """
+            {} Delta Functions:
+            ------------------
+            {}
 
-        {} Normalizations:
-        -----------------
-        {}
-        """.format(len(self.deltas),
-                '\n'.join(str(d) for d in self.deltas.values()),
-                len(self.normalizations),
-                '\n'.join(str(n) for n in self.normalizations.values()))
+            {} Normalizations:
+            -----------------
+            {}
+            """).format(len(self.deltas),
+                    '\n'.join(str(d) for d in self.deltas.values()),
+                    len(self.normalizations),
+                    '\n'.join(str(n) for n in self.normalizations.values()))
+
+    def _repr_html_(self):
+        return "<h4>Delta Functions</h4><ol><li>" + \
+            '</li><li>'.join(d._repr_html_() for d in self.deltas.values()) + \
+            '</ol><h4>Normalizations</h4><ol><li>' + \
+            '</li><li>'.join(str(n) for n in self.normalizations.values())
 
 
 registry = _FunctionRegistry()
@@ -205,6 +212,13 @@ class Normalization:
         # add docstring?
         return result
 
+    def _repr_html_(self):
+        result = '<code>{}</code>'.format(self.name)
+        if self.title != self.name:
+            result += ' <em>{}</em>'.format(self.title)
+        return result
+
+
 def normalization(*args, **kwargs):
     """
     Decorator that creates a :class:`Normalization` from a function or
@@ -217,8 +231,8 @@ def normalization(*args, **kwargs):
     title = kwargs['title'] if 'title' in kwargs else None
 
     def createNormalization(f):
-        return Normalization(f, name=name, title=title)
-        # FIXME functools.wrap?
+        wrapper = Normalization(f, name=name, title=title)
+        return update_wrapper(wrapper, f)
     if args and callable(args[0]):
         return createNormalization(args[0])
     else:
@@ -280,7 +294,15 @@ class DeltaFunction:
     def __str__(self):
         result = self.name
         if self.title != self.name:
-            result += ' ('+self.title+')'
+            result += ' "'+self.title+'"'
+        if self.descriptor != self.name:
+            result += ' = ' + self.descriptor
+        return result
+
+    def _repr_html_(self):
+        result = '<code>{}</code>'.format(self.name)
+        if self.title != self.name:
+            result += ' <em>{}</em>'.format(self.title)
         if self.descriptor != self.name:
             result += ' = ' + self.descriptor
         return result
@@ -690,7 +712,7 @@ def z_score(corpus):
 def eder_std(corpus):
     """
     Returns a copy of this corpus that is normalized using Eder's normalization.
-    This multiplies each entry with :math:`\frac{n-n_i+1}{n}`
+    This multiplies each entry with :math:`\\frac{n-n_i+1}{n}`
     """
     n = corpus.columns.size
     ed = pd.Series(range(n, 0, -1), index=corpus.columns) / n
