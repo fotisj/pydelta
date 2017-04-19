@@ -14,7 +14,8 @@ __author__ = 'Fotis Jannidis, Thorsten Vitt'
 from warnings import warn
 from delta.corpus import Corpus, FeatureGenerator, LETTERS_PATTERN, WORD_PATTERN
 from delta.deltas import registry as functions, normalization, Normalization, \
-        DeltaFunction, PDistDeltaFunction, CompositeDeltaFunction
+        DeltaFunction, PDistDeltaFunction, MetricDeltaFunction, \
+        CompositeDeltaFunction
 from delta.cluster import Clustering, FlatClustering
 
 from delta.features import get_rfe_features
@@ -22,7 +23,8 @@ from delta.graphics import Dendrogram
 
 __all__ = [ Corpus, FeatureGenerator, LETTERS_PATTERN, WORD_PATTERN,
            functions, Normalization, normalization,
-           DeltaFunction, PDistDeltaFunction, CompositeDeltaFunction,
+           DeltaFunction, PDistDeltaFunction,
+           MetricDeltaFunction, CompositeDeltaFunction,
            Clustering, FlatClustering,
            get_rfe_features, Dendrogram ]
 

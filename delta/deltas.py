@@ -54,6 +54,7 @@ from functools import update_wrapper
 from .util import Metadata
 from .corpus import Corpus
 from textwrap import dedent
+from sklearn.metrics import pairwise_distances
 
 sep = '-'   # separates parts of a descriptor
 
@@ -482,6 +483,9 @@ class CompositeDeltaFunction(DeltaFunction):
 class PDistDeltaFunction(DeltaFunction):
     """
     Wraps one of the metrics implemented by :func:`ssd.pdist` as a delta function.
+
+    Warning:
+        You should use MetricDeltaFunction instead.
     """
     def __init__(self, metric, name=None, title=None, register=True, scale=False, **kwargs):
         """
@@ -492,6 +496,8 @@ class PDistDeltaFunction(DeltaFunction):
             register (bool): If false, don't register this with the registry
             **kwargs:      passed on to :func:`ssd.pdist`
         """
+        logger.warning("Prefer MetricsDeltaFunction to PDistDeltaFunction.")
+
         self.metric = metric
         self.kwargs = kwargs
         if name is None:
@@ -502,13 +508,59 @@ class PDistDeltaFunction(DeltaFunction):
 
         super().__init__(descriptor=name, name=name, title=title, register=register)
 
+
     def __call__(self, corpus):
         df = pd.DataFrame(index=corpus.index, columns=corpus.index,
                           data=ssd.squareform(ssd.pdist(corpus, self.metric,
-                                                        self.kwargs)))
+                                                        **self.kwargs)))
         if self.scale:
             df = df / corpus.columns.size
         return self.create_result(df, corpus)
+
+
+class MetricDeltaFunction(DeltaFunction):
+    """
+    Distance functions based on scikit-learn's :func:`sklearn.metric.pairwise_distances`.
+    """
+
+    def __init__(self, metric, name=None, title=None, register=True, scale=False, fix_symmetry=True, **kwargs):
+        """
+        Args:
+            metric (str):  The metric that should be called via sklearn.metric.pairwise_distances
+            name (str):    Name / Descriptor for the delta function, if None, metric is used
+            title (str):   Human-Readable Title
+            register (bool): If false, don't register this with the registry
+            scale (bool):  Scale by number of features
+            fix_symmetry:  Force the resulting matrix to be symmetric
+            **kwargs:      passed on to :func:`ssd.pdist`
+
+        Note:
+            :func:`sklearn.metric.pairwise_distances` fast, but the result may
+            not be exactly symmetric. The `fix_symmetry` option enforces
+            symmetry by mirroring the lower-left triangle after calculating
+            distances so, e.g., scipy clustering won't complain.
+        """
+        self.metric = metric
+        self.scale = scale
+        self.fix_symmetry = fix_symmetry
+        self.kwargs = kwargs
+        if name is None:
+            name = metric
+        if title is None:
+            title = name.title() + " Distance"
+        super().__init__(descriptor=name, name=name, title=title, register=register)
+
+    def __call__(self, corpus):
+        dm = pairwise_distances(corpus, metric=self.metric, n_jobs=-1, **self.kwargs)
+        if self.fix_symmetry:
+            dm = np.tril(dm, -1)
+            dm += dm.T
+        df = pd.DataFrame(data=dm, index=corpus.index, columns=corpus.index)
+        if self.scale:
+            df = df / corpus.columns.size
+        np.fill_diagonal(df.values, 0)   # rounding errors may lead to validation bugs
+        return self.create_result(df, corpus)
+
 
 
 class DistanceMatrix(pd.DataFrame):
@@ -770,14 +822,14 @@ def ternarize(corpus, lower_bound=-0.43, upper_bound=0.43):
 
 ################ Here come the deltas
 
-PDistDeltaFunction("cityblock", "manhattan", title="Manhattan Distance", scale=True)
-PDistDeltaFunction("euclidean")
-PDistDeltaFunction("sqeuclidean", title="Squared Euclidean Distance")
-PDistDeltaFunction("cosine")
-PDistDeltaFunction("canberra")
-PDistDeltaFunction("braycurtis", title="Bray-Curtis Distance")
-PDistDeltaFunction("correlation")
-PDistDeltaFunction("chebyshev")
+MetricDeltaFunction("cityblock", "manhattan", title="Manhattan Distance", scale=True)
+MetricDeltaFunction("euclidean")
+MetricDeltaFunction("sqeuclidean", title="Squared Euclidean Distance")
+MetricDeltaFunction("cosine")
+MetricDeltaFunction("canberra")
+MetricDeltaFunction("braycurtis", title="Bray-Curtis Distance")
+MetricDeltaFunction("correlation")
+MetricDeltaFunction("chebyshev")
 
 CompositeDeltaFunction("manhattan-z_score", "burrows", "Burrows' Delta")
 CompositeDeltaFunction("sqeuclidean-z_score", "quadratic", "Quadratic Delta")
