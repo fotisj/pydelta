@@ -16,6 +16,7 @@ Contents:
 
    README
    GettingStarted.ipynb
+   CustomizingPipeline.ipynb
    concept
    delta
 
