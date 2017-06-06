@@ -650,7 +650,7 @@ class DistanceMatrix(pd.DataFrame):
         Returns a DistanceMatrix that has only the upper right triangle filled,
         ie contains only the unique meaningful values.
         """
-        return DistanceMatrix(self.where(np.triu(np.ones(self.shape),
+        return DistanceMatrix(self.where(np.triu(np.ones(self.shape, dtype=bool),
                                                  k=1)),
                               copy_from=self)
 
